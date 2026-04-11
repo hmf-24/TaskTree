@@ -1,62 +1,53 @@
-// 任务状态
-export const TaskStatus = {
-  PENDING: 'pending',
-  IN_PROGRESS: 'in_progress',
-  COMPLETED: 'completed',
-  CANCELLED: 'cancelled',
-} as const;
+"""
+TaskTree 常量定义
+"""
+from enum import Enum
 
-// 任务优先级
-export const TaskPriority = {
-  HIGH: 'high',
-  MEDIUM: 'medium',
-  LOW: 'low',
-} as const;
 
-// 项目状态
-export const ProjectStatus = {
-  ACTIVE: 'active',
-  ARCHIVED: 'archived',
-} as const;
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
-// 成员角色
-export const MemberRole = {
-  OWNER: 'owner',
-  EDITOR: 'editor',
-  VIEWER: 'viewer',
-} as const;
 
-// 状态颜色映射
-export const STATUS_COLORS: Record<string, string> = {
-  pending: 'default',
-  in_progress: 'processing',
-  completed: 'success',
-  cancelled: 'default',
-};
+class TaskPriority(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
 
-// 优先级颜色映射
-export const PRIORITY_COLORS: Record<string, string> = {
-  high: 'red',
-  medium: 'orange',
-  low: 'green',
-};
 
-// 状态标签映射
-export const STATUS_LABELS: Record<string, string> = {
-  pending: '待办',
-  in_progress: '进行中',
-  completed: '已完成',
-  cancelled: '已取消',
-};
+class ProjectStatus(str, Enum):
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    DELETED = "deleted"
 
-// 优先级标签映射
-export const PRIORITY_LABELS: Record<string, string> = {
-  high: '高',
-  medium: '中',
-  low: '低',
-};
 
-export type TaskStatusType = typeof TaskStatus[keyof typeof TaskStatus];
-export type TaskPriorityType = typeof TaskPriority[keyof typeof TaskPriority];
-export type ProjectStatusType = typeof ProjectStatus[keyof typeof ProjectStatus];
-export type MemberRoleType = typeof MemberRole[keyof typeof MemberRole];
+class MemberRole(str, Enum):
+    OWNER = "owner"
+    ADMIN = "admin"
+    MEMBER = "member"
+    VIEWER = "viewer"
+
+
+# 状态标签映射
+STATUS_LABELS = {
+    TaskStatus.PENDING: "待办",
+    TaskStatus.IN_PROGRESS: "进行中",
+    TaskStatus.COMPLETED: "已完成",
+    TaskStatus.CANCELLED: "已取消",
+}
+
+PRIORITY_LABELS = {
+    TaskPriority.HIGH: "高",
+    TaskPriority.MEDIUM: "中",
+    TaskPriority.LOW: "低",
+}
+
+# 允许的状态流转
+VALID_STATUS_TRANSITIONS = {
+    TaskStatus.PENDING: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED],
+    TaskStatus.IN_PROGRESS: [TaskStatus.COMPLETED, TaskStatus.PENDING, TaskStatus.CANCELLED],
+    TaskStatus.COMPLETED: [TaskStatus.PENDING],
+    TaskStatus.CANCELLED: [TaskStatus.PENDING],
+}

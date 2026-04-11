@@ -21,18 +21,18 @@ export default function Login() {
 
       const token = res.data.access_token;
 
+      // 先保存 token 到 store，这样后续请求拦截器能正确携带 token
+      setAuth({ id: 0, email: values.email, nickname: '' }, token);
+
       try {
         const userRes = await authAPI.getCurrentUser();
         if (userRes.code === 200) {
           const user = userRes.data;
           setAuth({ id: user.id, email: user.email, nickname: user.nickname, avatar: user.avatar }, token);
-        } else {
-          message.warning('登录成功，但无法获取用户信息');
-          setAuth({ id: 0, email: values.email, nickname: '' }, token);
         }
       } catch {
+        // token 已保存，用户信息获取失败不影响登录
         message.warning('登录成功，但无法获取用户信息');
-        setAuth({ id: 0, email: values.email, nickname: '' }, token);
       }
 
       message.success('登录成功');

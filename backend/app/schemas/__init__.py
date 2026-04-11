@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 
 
@@ -275,7 +275,7 @@ class PaginatedResponse(BaseModel):
 class MessageResponse(BaseModel):
     code: int = 200
     message: str = "success"
-    data: Optional[dict] = None
+    data: Optional[Any] = None
 
 
 # 更新前向引用

@@ -1,8 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
 
-# 延迟导入以避免循环导入
-Base = declarative_base()
+# Base 统一在 app.models.__init__ 中定义，避免重复创建
 
 # 引擎和会话工厂将在 settings 加载后初始化
 _engine = None

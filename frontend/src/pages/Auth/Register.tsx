@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { authAPI } from '../../api';
@@ -45,7 +45,7 @@ export default function Register() {
             </Button>
           </Form.Item>
           <div className="text-center">
-            已有账号？<a href="/auth/login">立即登录</a>
+            已有账号？<Link to="/auth/login">立即登录</Link>
           </div>
         </Form>
       </Card>

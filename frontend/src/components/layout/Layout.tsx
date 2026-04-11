@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Layout as AntLayout, Menu, Avatar, Dropdown, Button } from 'antd';
+import React from 'react';
+import { Layout as AntLayout, Menu, Avatar, Dropdown } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { UserOutlined, LogoutOutlined, SettingOutlined, BellOutlined, HomeOutlined } from '@ant-design/icons';
-import { useAuthStore } from '../stores/auth';
+import { UserOutlined, LogoutOutlined, SettingOutlined, HomeOutlined } from '@ant-design/icons';
+import { useAuthStore } from '../../stores/auth';
+import NotificationPanel from '../notification/NotificationPanel';
 
 const { Header, Sider, Content } = AntLayout;
 
@@ -54,7 +55,7 @@ export default function Layout() {
       <Header className="flex justify-between items-center px-4 bg-white shadow-sm" style={{ zIndex: 1 }}>
         <div className="text-xl font-bold text-blue-600">TaskTree</div>
         <div className="flex items-center gap-4">
-          <Button type="text" icon={<BellOutlined />} />
+          <NotificationPanel />
           <Dropdown menu={userMenu} placement="bottomRight">
             <div className="flex items-center cursor-pointer">
               <Avatar icon={<UserOutlined />} src={user?.avatar} />

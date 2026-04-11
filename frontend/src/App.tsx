@@ -29,13 +29,13 @@ function AuthRoutes() {
 
 function AppRoutes() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<ProjectList />} />
-        <Route path="/project/:id" element={<ProjectDetail />} />
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<ProjectList />} />
+        <Route path="project/:id" element={<ProjectDetail />} />
         <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </Layout>
+      </Route>
+    </Routes>
   );
 }
 

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -15,8 +15,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     nickname = Column(String(100))
     avatar = Column(String(500))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # 关联
     owned_projects = relationship('Project', back_populates='owner')
@@ -37,8 +37,8 @@ class Project(Base):
     end_date = Column(Date)
     status = Column(String(20), default='active', index=True)
     is_archived = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # 关联
     owner = relationship('User', back_populates='owned_projects')
@@ -55,7 +55,7 @@ class ProjectMember(Base):
     project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     role = Column(String(20), default='viewer')
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('project_id', 'user_id'),)
 
@@ -81,8 +81,8 @@ class Task(Base):
     start_date = Column(Date)
     due_date = Column(Date)
     sort_order = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # 关联
     project = relationship('Project', back_populates='tasks')
@@ -102,7 +102,7 @@ class TaskDependency(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
     dependent_task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('task_id', 'dependent_task_id'),)
 
@@ -118,7 +118,7 @@ class TaskTag(Base):
     project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
     name = Column(String(50), nullable=False)
     color = Column(String(20))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('project_id', 'name'),)
 
@@ -145,7 +145,7 @@ class TaskComment(Base):
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     task = relationship('Task', back_populates='comments')
     user = relationship('User', back_populates='comments')
@@ -162,7 +162,7 @@ class TaskAttachment(Base):
     file_path = Column(String(500), nullable=False)
     file_size = Column(Integer)
     mime_type = Column(String(100))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     task = relationship('Task', back_populates='attachments')
 
@@ -179,7 +179,7 @@ class Notification(Base):
     related_id = Column(Integer)
     related_type = Column(String(50))
     is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship('User', back_populates='notifications')
 
@@ -195,6 +195,6 @@ class OperationLog(Base):
     action = Column(String(50), nullable=False)
     old_value = Column(Text)
     new_value = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     user = relationship('User')
