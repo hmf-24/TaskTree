@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Space, Modal, Form, Input, DatePicker, message, Progress, Dropdown } from 'antd';
 import { PlusOutlined, MoreOutlined, EditOutlined, DeleteOutlined, ArchiveOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { projectsAPI } from '../../api';
-import dayjs from 'dayjs';
+import { PROJECT_STATUS } from '../../constants';
 
 export default function ProjectList() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -12,14 +12,10 @@ export default function ProjectList() {
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchProjects();
-  }, []);
-
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await projectsAPI.list({ status: 'active' });
+      const res = await projectsAPI.list({ status: PROJECT_STATUS.ACTIVE });
       if (res.code === 200) {
         setProjects(res.data.items || []);
       }
@@ -28,7 +24,11 @@ export default function ProjectList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   const handleCreate = async (values: any) => {
     try {

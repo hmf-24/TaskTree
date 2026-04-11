@@ -15,7 +15,15 @@ export default function Login() {
     try {
       const res = await authAPI.login(values);
       if (res.code === 200) {
-        setAuth({ id: 0, email: values.email, nickname: '' }, res.data.access_token);
+        const token = res.data.access_token;
+        // 获取用户信息
+        const userRes = await authAPI.getCurrentUser();
+        if (userRes.code === 200) {
+          const user = userRes.data;
+          setAuth({ id: user.id, email: user.email, nickname: user.nickname, avatar: user.avatar }, token);
+        } else {
+          setAuth({ id: 0, email: values.email, nickname: '' }, token);
+        }
         message.success('登录成功');
         navigate('/');
       } else {

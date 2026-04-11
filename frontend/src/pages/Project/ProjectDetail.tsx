@@ -6,6 +6,7 @@ import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { projectsAPI, tasksAPI } from '../../api';
+import { STATUS_COLORS, PRIORITY_COLORS, STATUS_LABELS, PRIORITY_LABELS, TASK_STATUS } from '../../constants';
 
 interface Task {
   id: number;
@@ -16,33 +17,6 @@ interface Task {
   parent_id: number | null;
   children?: Task[];
 }
-
-// 颜色映射 - 移至组件外
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'default',
-  in_progress: 'processing',
-  completed: 'success',
-  cancelled: 'default',
-};
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: 'red',
-  medium: 'orange',
-  low: 'green',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: '待办',
-  in_progress: '进行中',
-  completed: '已完成',
-  cancelled: '已取消',
-};
-
-const PRIORITY_LABELS: Record<string, string> = {
-  high: '高',
-  medium: '中',
-  low: '低',
-};
 
 // 任务项组件
 function TaskItem({ task, onEdit, onDelete, onAddChild, depth = 0 }: { task: Task; onEdit: (t: Task) => void; onDelete: (t: Task) => void; onAddChild: (t: Task) => void; depth?: number }) {
@@ -176,7 +150,7 @@ export default function ProjectDetail() {
           description: values.description,
           parent_id: parentTaskId,
           priority: values.priority,
-          status: values.status || 'pending',
+          status: values.status || TASK_STATUS.PENDING,
           progress: values.progress || 0,
           due_date: values.due_date?.format('YYYY-MM-DD'),
         });
@@ -192,9 +166,9 @@ export default function ProjectDetail() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (active.id !== over?.id) {
-      // TODO: 实现拖拽排序
-      console.log('drag from', active.id, 'to', over?.id);
+    if (active.id !== over?.id && over) {
+      // 拖拽排序功能待实现
+      message.info('拖拽排序功能开发中');
     }
   };
 
