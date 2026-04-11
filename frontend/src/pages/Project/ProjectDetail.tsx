@@ -1,10 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Input, Modal, Form, Select, DatePicker, Progress, Tag, Space, Dropdown, message, Empty } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ArrowLeftOutlined, MoreOutlined, ExportOutlined } from '@ant-design/icons';
-import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { projectsAPI, tasksAPI } from '../../api';
 import { STATUS_COLORS, PRIORITY_COLORS, STATUS_LABELS, PRIORITY_LABELS, TASK_STATUS } from '../../constants';
 
@@ -20,9 +17,6 @@ interface Task {
 
 // 任务项组件
 function TaskItem({ task, onEdit, onDelete, onAddChild, depth = 0 }: { task: Task; onEdit: (t: Task) => void; onDelete: (t: Task) => void; onAddChild: (t: Task) => void; depth?: number }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
-  const style = { transform: CSS.Transform.toString(transform), transition };
-
   const menuItems = [
     { key: 'edit', label: '编辑', icon: <EditOutlined />, onClick: () => onEdit(task) },
     { key: 'add', label: '添加子任务', icon: <PlusOutlined />, onClick: () => onAddChild(task) },
@@ -30,11 +24,11 @@ function TaskItem({ task, onEdit, onDelete, onAddChild, depth = 0 }: { task: Tas
   ];
 
   return (
-    <div ref={setNodeRef} style={{ ...style, paddingLeft: depth * 24 }} className="mb-2">
+    <div style={{ paddingLeft: depth * 24 }} className="mb-2">
       <Card size="small" className="bg-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span {...attributes} {...listeners} className="cursor-move text-gray-400">⋮⋮</span>
+            <span className="text-gray-400">⋮⋮</span>
             <span className="font-medium">{task.name}</span>
           </div>
           <Space>
@@ -164,25 +158,6 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (active.id !== over?.id && over) {
-      // 拖拽排序功能待实现
-      message.info('拖拽排序功能开发中');
-    }
-  };
-
-  // 扁平化任务树用于排序 - 使用 useMemo 优化
-  const flatTasks = useMemo(() => {
-    const flat: Task[] = [];
-    const traverse = (task: Task) => {
-      flat.push(task);
-      task.children?.forEach(traverse);
-    };
-    tasks.forEach(traverse);
-    return flat;
-  }, [tasks]);
-
   return (
     <div className="p-6">
       <div className="flex items-center gap-4 mb-6">
@@ -204,13 +179,11 @@ export default function ProjectDetail() {
       {tasks.length === 0 ? (
         <Empty description="暂无任务，点击上方按钮添加第一个任务" />
       ) : (
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={flatTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-            {tasks.map((task) => (
-              <TaskItem key={task.id} task={task} onEdit={handleEditTask} onDelete={handleDeleteTask} onAddChild={handleAddTask} />
-            ))}
-          </SortableContext>
-        </DndContext>
+        <div>
+          {tasks.map((task) => (
+            <TaskItem key={task.id} task={task} onEdit={handleEditTask} onDelete={handleDeleteTask} onAddChild={handleAddTask} />
+          ))}
+        </div>
       )}
 
       <Modal
@@ -230,17 +203,16 @@ export default function ProjectDetail() {
           <Space style={{ width: '100%' }}>
             <Form.Item name="priority" label="优先级" initialValue="medium">
               <Select style={{ width: 120 }}>
-                <Select.Option value="high">高</Select.Option>
-                <Select.Option value="medium">中</Select.Option>
-                <Select.Option value="low">低</Select.Option>
+                {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                  <Select.Option key={value} value={value}>{label as string}</Select.Option>
+                ))}
               </Select>
             </Form.Item>
             <Form.Item name="status" label="状态" initialValue="pending">
               <Select style={{ width: 120 }}>
-                <Select.Option value="pending">待办</Select.Option>
-                <Select.Option value="in_progress">进行中</Select.Option>
-                <Select.Option value="completed">已完成</Select.Option>
-                <Select.Option value="cancelled">已取消</Select.Option>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <Select.Option key={value} value={value}>{label as string}</Select.Option>
+                ))}
               </Select>
             </Form.Item>
             <Form.Item name="progress" label="进度" initialValue={0}>

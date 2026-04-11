@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authAPI } from '../../api';
@@ -14,21 +14,29 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await authAPI.login(values);
-      if (res.code === 200) {
-        const token = res.data.access_token;
-        // 获取用户信息
+      if (res.code !== 200) {
+        message.error(res.message || '登录失败');
+        return;
+      }
+
+      const token = res.data.access_token;
+
+      try {
         const userRes = await authAPI.getCurrentUser();
         if (userRes.code === 200) {
           const user = userRes.data;
           setAuth({ id: user.id, email: user.email, nickname: user.nickname, avatar: user.avatar }, token);
         } else {
+          message.warning('登录成功，但无法获取用户信息');
           setAuth({ id: 0, email: values.email, nickname: '' }, token);
         }
-        message.success('登录成功');
-        navigate('/');
-      } else {
-        message.error(res.message || '登录失败');
+      } catch {
+        message.warning('登录成功，但无法获取用户信息');
+        setAuth({ id: 0, email: values.email, nickname: '' }, token);
       }
+
+      message.success('登录成功');
+      navigate('/');
     } catch (error: any) {
       message.error(error.message || '登录失败');
     } finally {
@@ -53,7 +61,7 @@ export default function Login() {
             </Button>
           </Form.Item>
           <div className="text-center">
-            还没有账号？<a href="/auth/register">立即注册</a>
+            还没有账号？<Link to="/auth/register">立即注册</Link>
           </div>
         </Form>
       </Card>

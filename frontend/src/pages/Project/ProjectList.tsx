@@ -44,6 +44,8 @@ export default function ProjectList() {
         setModalVisible(false);
         form.resetFields();
         fetchProjects();
+      } else {
+        message.error(res.message || '创建失败');
       }
     } catch (error: any) {
       message.error(error.message || '创建失败');
@@ -60,6 +62,8 @@ export default function ProjectList() {
           if (res.code === 200) {
             message.success('删除成功');
             fetchProjects();
+          } else {
+            message.error(res.message || '删除失败');
           }
         } catch (error: any) {
           message.error(error.message || '删除失败');
@@ -74,6 +78,8 @@ export default function ProjectList() {
       if (res.code === 200) {
         message.success('归档成功');
         fetchProjects();
+      } else {
+        message.error(res.message || '归档失败');
       }
     } catch (error: any) {
       message.error(error.message || '归档失败');
