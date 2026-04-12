@@ -19,10 +19,11 @@ export const PROJECT_STATUS = {
   ARCHIVED: 'archived',
 } as const;
 
-// 成员角色
+// 成员角色（与后端 constants.py MemberRole 保持一致）
 export const MEMBER_ROLE = {
   OWNER: 'owner',
-  EDITOR: 'editor',
+  ADMIN: 'admin',
+  MEMBER: 'member',
   VIEWER: 'viewer',
 } as const;
 

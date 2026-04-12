@@ -25,7 +25,8 @@ import TagManager from '../../components/tag/TagManager';
 import ExportModal from '../../components/export/ExportModal';
 import ImportModal from '../../components/export/ImportModal';
 import GanttView from '../../components/views/GanttView';
-import type { Task } from '../../types';
+import DependencyGraph from '../../components/dependency/DependencyGraph';
+import type { Task, Dependency } from '../../types';
 
 // 状态图标映射
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -68,6 +69,38 @@ function findTaskById(tasks: Task[], id: number): Task | null {
     }
   }
   return null;
+}
+
+// 扁平化所有任务用于依赖图
+function flattenAllTasks(tasks: Task[]): Task[] {
+  const result: Task[] = [];
+  const traverse = (list: Task[]) => {
+    for (const task of list) {
+      result.push(task);
+      if (task.children && task.children.length > 0) {
+        traverse(task.children);
+      }
+    }
+  };
+  traverse(tasks);
+  return result;
+}
+
+// 收集所有任务的依赖关系（从 task.dependencies_from 聚合）
+function collectDependencies(tasks: Task[]): Dependency[] {
+  const deps: Dependency[] = [];
+  const traverse = (list: Task[]) => {
+    for (const task of list) {
+      if ((task as any).dependencies_from) {
+        for (const dep of (task as any).dependencies_from) {
+          deps.push(dep);
+        }
+      }
+      if (task.children) traverse(task.children);
+    }
+  };
+  traverse(tasks);
+  return deps;
 }
 
 // 可拖拽的任务项组件
@@ -355,6 +388,7 @@ export default function ProjectDetail() {
     { value: 'kanban', icon: <AppstoreOutlined />, label: '看板' },
     { value: 'list', icon: <UnorderedListOutlined />, label: '列表' },
     { value: 'gantt', icon: <BarChartOutlined />, label: '甘特图' },
+    { value: 'dependency', icon: <ApartmentOutlined />, label: '依赖图' },
   ];
 
   return (
@@ -441,6 +475,16 @@ export default function ProjectDetail() {
       {viewType === 'gantt' && (
         <div id="gantt-view-container">
           <GanttView tasks={tasks} onTaskClick={handleOpenDetail} />
+        </div>
+      )}
+
+      {/* 依赖关系图视图 (BUG-2-01 fix) */}
+      {viewType === 'dependency' && (
+        <div id="dependency-view-container">
+          <DependencyGraph
+            tasks={flattenAllTasks(tasks)}
+            dependencies={collectDependencies(tasks)}
+          />
         </div>
       )}
 

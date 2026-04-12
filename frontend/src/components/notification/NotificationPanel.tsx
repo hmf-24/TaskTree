@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Popover, Badge, List, Button, Empty, message, Tabs } from 'antd';
+import { Popover, Badge, List, Button, Empty, message } from 'antd';
 import { BellOutlined, CheckOutlined } from '@ant-design/icons';
 import { notificationsAPI } from '../../api';
 import type { Notification } from '../../types';

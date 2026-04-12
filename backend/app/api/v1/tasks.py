@@ -1,9 +1,20 @@
+"""
+TaskTree 任务路由
+================
+提供任务 CRUD、拖拽移动、批量创建、依赖关系、标签、评论等全部任务相关端点。
+状态流转会进行合法性校验（基于 VALID_STATUS_TRANSITIONS）。
+关键操作会自动创建通知记录。
+"""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models import User, Project, Task, TaskDependency, TaskTag, TaskTagRelation, TaskComment, ProjectMember
+from app.core.constants import VALID_STATUS_TRANSITIONS, TaskStatus
+from app.models import (
+    User, Project, Task, TaskDependency, TaskTag, TaskTagRelation,
+    TaskComment, ProjectMember, Notification
+)
 from app.schemas import (
     TaskCreate, TaskUpdate, TaskResponse, TaskDetailResponse,
     TaskMoveRequest, TaskDeleteQuery, BatchTaskCreate,
@@ -17,7 +28,12 @@ router = APIRouter()
 
 
 async def get_task_with_access(task_id: int, db: AsyncSession, current_user: User) -> Task:
-    """获取任务并验证权限"""
+    """获取任务并验证当前用户是否有权限访问该任务所属项目。
+
+    Raises:
+        HTTPException 404: 任务不存在。
+        HTTPException 403: 用户无权访问。
+    """
     result = await db.execute(
         select(Task).options(selectinload(Task.project)).where(Task.id == task_id)
     )
@@ -26,7 +42,7 @@ async def get_task_with_access(task_id: int, db: AsyncSession, current_user: Use
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    # 检查项目权限
+    # 检查项目权限：项目所有者或项目成员
     project = task.project
     if project.owner_id != current_user.id:
         result = await db.execute(
@@ -43,15 +59,60 @@ async def get_task_with_access(task_id: int, db: AsyncSession, current_user: Use
     return task
 
 
+async def create_notification(
+    db: AsyncSession,
+    user_id: int,
+    type: str,
+    title: str,
+    content: str = "",
+    related_id: int | None = None,
+    related_type: str | None = None,
+):
+    """创建一条通知记录并写入数据库（不单独 commit，由调用方统一 commit）。"""
+    notification = Notification(
+        user_id=user_id,
+        type=type,
+        title=title,
+        content=content,
+        related_id=related_id,
+        related_type=related_type,
+    )
+    db.add(notification)
+
+
+def validate_status_transition(current_status: str, new_status: str):
+    """校验任务状态流转是否合法。
+
+    Raises:
+        HTTPException 400: 不允许的状态转换。
+    """
+    if current_status == new_status:
+        return  # 相同状态不需要验证
+    try:
+        current_enum = TaskStatus(current_status)
+        new_enum = TaskStatus(new_status)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"无效的状态值: {new_status}")
+
+    allowed = VALID_STATUS_TRANSITIONS.get(current_enum, [])
+    if new_enum not in allowed:
+        allowed_labels = [s.value for s in allowed]
+        raise HTTPException(
+            status_code=400,
+            detail=f"不允许从 '{current_status}' 转换为 '{new_status}'。允许的目标状态: {allowed_labels}"
+        )
+
+
 def build_task_tree(tasks: list[Task]) -> list[dict]:
-    """构建任务树 - 使用映射表优化"""
+    """构建任务树形结构 - 使用 HashMap 映射表优化（O(n) 复杂度）。
+
+    返回完整的任务字段，以便前端的树形/看板/甘特图/列表等视图正常工作。
+    """
     if not tasks:
         return []
 
-    # 构建映射
-    task_map = {t.id: t for t in tasks}
-    children_map: dict[int, list[Task]] = {}
-
+    # 构建 parent_id -> children 映射
+    children_map: dict[int | None, list[Task]] = {}
     for task in tasks:
         parent_id = task.parent_id if task.parent_id else None
         if parent_id not in children_map:
@@ -60,13 +121,22 @@ def build_task_tree(tasks: list[Task]) -> list[dict]:
 
     def build_children(parent_id: int | None) -> list[dict]:
         result = []
-        for task in children_map.get(parent_id, []):
+        for task in sorted(children_map.get(parent_id, []), key=lambda t: t.sort_order):
             result.append({
                 "id": task.id,
+                "project_id": task.project_id,
+                "parent_id": task.parent_id,
                 "name": task.name,
+                "description": task.description,
+                "assignee_id": task.assignee_id,
                 "status": task.status,
-                "progress": task.progress,
                 "priority": task.priority,
+                "progress": task.progress,
+                "estimated_time": task.estimated_time,
+                "actual_time": task.actual_time,
+                "start_date": str(task.start_date) if task.start_date else None,
+                "due_date": str(task.due_date) if task.due_date else None,
+                "sort_order": task.sort_order,
                 "children": build_children(task.id)
             })
         return result
@@ -83,6 +153,7 @@ async def create_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """在指定项目下创建一个新任务，可选指定父任务。"""
     # 验证项目权限
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
@@ -150,6 +221,7 @@ async def get_task_tree(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """获取项目下所有任务的树形结构（含完整字段）。"""
     # 查询所有任务
     result = await db.execute(
         select(Task).where(Task.project_id == project_id)
@@ -283,10 +355,29 @@ async def update_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """更新任务属性，包含状态流转合法性校验和自动通知生成。"""
     task = await get_task_with_access(task_id, db, current_user)
+    update_dict = task_data.model_dump(exclude_unset=True)
+
+    # --- 状态流转校验 (CROSS-02 fix) ---
+    new_status = update_dict.get("status")
+    if new_status and new_status != task.status:
+        validate_status_transition(task.status, new_status)
+
+        # 任务状态变更时，向任务负责人发送通知 (CROSS-03 fix)
+        if task.assignee_id and task.assignee_id != current_user.id:
+            await create_notification(
+                db,
+                user_id=task.assignee_id,
+                type="task_status",
+                title=f"任务状态已更新",
+                content=f'任务「{task.name}」状态已从 {task.status} 变更为 {new_status}',
+                related_id=task.id,
+                related_type="task",
+            )
 
     # 更新字段
-    for field, value in task_data.model_dump(exclude_unset=True).items():
+    for field, value in update_dict.items():
         setattr(task, field, value)
 
     await db.commit()
@@ -328,31 +419,49 @@ async def move_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """移动任务：改变父任务 和/或 排序位置，包含循环引用检测和同级任务 sort_order 重排。"""
     task = await get_task_with_access(task_id, db, current_user)
+
+    new_parent_id = task.parent_id  # 默认保持不变
 
     if move_data.parent_id is not None:
         if move_data.parent_id == task_id:
             raise HTTPException(status_code=400, detail="不能将任务移动到自身")
-        # 验证新的父任务
+        # 验证新的父任务存在且属于同一项目
         result = await db.execute(select(Task).where(Task.id == move_data.parent_id))
         parent = result.scalar_one_or_none()
         if not parent or parent.project_id != task.project_id:
             raise HTTPException(status_code=400, detail="父任务不存在")
 
-        # 检查循环引用
-        if move_data.parent_id:
-            current_parent_id = move_data.parent_id
-            while current_parent_id:
-                if current_parent_id == task_id:
-                    raise HTTPException(status_code=400, detail="不能创建循环依赖")
-                result = await db.execute(select(Task).where(Task.id == current_parent_id))
-                parent = result.scalar_one_or_none()
-                current_parent_id = parent.parent_id if parent else None
+        # 检查循环引用：沿父链向上遍历，确保不会形成环
+        current_parent_id = move_data.parent_id
+        while current_parent_id:
+            if current_parent_id == task_id:
+                raise HTTPException(status_code=400, detail="不能创建循环依赖")
+            result = await db.execute(select(Task).where(Task.id == current_parent_id))
+            p = result.scalar_one_or_none()
+            current_parent_id = p.parent_id if p else None
 
         task.parent_id = move_data.parent_id
+        new_parent_id = move_data.parent_id
 
     if move_data.sort_order is not None:
-        task.sort_order = move_data.sort_order
+        target_order = move_data.sort_order
+        # 重排同级任务的 sort_order，避免多次拖拽后序号冲突
+        siblings = await db.execute(
+            select(Task).where(
+                and_(
+                    Task.project_id == task.project_id,
+                    Task.parent_id == new_parent_id if new_parent_id else Task.parent_id.is_(None),
+                    Task.id != task_id
+                )
+            ).order_by(Task.sort_order)
+        )
+        sibling_list = list(siblings.scalars().all())
+        # 将当前任务插入到目标位置，然后重新编号
+        sibling_list.insert(min(target_order, len(sibling_list)), task)
+        for idx, t in enumerate(sibling_list):
+            t.sort_order = idx
 
     await db.commit()
 
@@ -648,7 +757,8 @@ async def create_comment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    await get_task_with_access(task_id, db, current_user)
+    """创建任务评论，并向任务负责人发送通知 (CROSS-03 fix)。"""
+    task = await get_task_with_access(task_id, db, current_user)
 
     comment = TaskComment(
         task_id=task_id,
@@ -656,6 +766,33 @@ async def create_comment(
         content=comment_data.content
     )
     db.add(comment)
+
+    # 向任务负责人发送评论通知（不给自己发）
+    if task.assignee_id and task.assignee_id != current_user.id:
+        await create_notification(
+            db,
+            user_id=task.assignee_id,
+            type="comment",
+            title="新评论",
+            content=f'{current_user.nickname or current_user.email} 评论了任务「{task.name}」',
+            related_id=task_id,
+            related_type="task",
+        )
+
+    # 处理 @ 提及通知
+    if comment_data.mentions:
+        for mentioned_user_id in comment_data.mentions:
+            if mentioned_user_id != current_user.id:
+                await create_notification(
+                    db,
+                    user_id=mentioned_user_id,
+                    type="mention",
+                    title="有人提及了你",
+                    content=f'{current_user.nickname or current_user.email} 在任务「{task.name}」中 @了你',
+                    related_id=task_id,
+                    related_type="task",
+                )
+
     await db.commit()
     await db.refresh(comment)
 

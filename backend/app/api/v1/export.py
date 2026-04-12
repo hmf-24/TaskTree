@@ -1,3 +1,9 @@
+"""
+TaskTree 导入导出路由
+====================
+支持将项目数据导出为 JSON / Markdown / Excel 格式，
+以及从 JSON 文件导入任务树和标签。
+"""
 import io
 import json
 from datetime import datetime, timezone
@@ -32,10 +38,18 @@ async def _get_project_access(project_id: int, db: AsyncSession, current_user: U
 
 
 def _build_export_tree(tasks: list, parent_id=None) -> list:
-    """构建导出用的任务树"""
-    result = []
+    """构建导出用的任务树（O(n) 复杂度，使用 HashMap 预处理）。"""
+    # 预建 parent_id -> children 映射
+    children_map: dict = {}
     for t in tasks:
-        if t.parent_id == parent_id:
+        pid = t.parent_id
+        if pid not in children_map:
+            children_map[pid] = []
+        children_map[pid].append(t)
+
+    def build(pid):
+        result = []
+        for t in children_map.get(pid, []):
             node = {
                 "name": t.name,
                 "description": t.description,
@@ -46,10 +60,12 @@ def _build_export_tree(tasks: list, parent_id=None) -> list:
                 "due_date": str(t.due_date) if t.due_date else None,
                 "estimated_time": t.estimated_time,
                 "sort_order": t.sort_order,
-                "children": _build_export_tree(tasks, t.id),
+                "children": build(t.id),
             }
             result.append(node)
-    return result
+        return result
+
+    return build(parent_id)
 
 
 # ========== JSON 导出 ==========

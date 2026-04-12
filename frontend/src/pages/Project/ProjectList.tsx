@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Space, Modal, Form, Input, DatePicker, message, Progress, Dropdown } from 'antd';
-import { PlusOutlined, MoreOutlined, EditOutlined, DeleteOutlined, ArchiveOutlined } from '@ant-design/icons';
+import { PlusOutlined, MoreOutlined, EditOutlined, DeleteOutlined, InboxOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { projectsAPI } from '../../api';
 import { PROJECT_STATUS } from '../../constants';
@@ -96,7 +96,7 @@ export default function ProjectList() {
     {
       key: 'archive',
       label: '归档',
-      icon: <ArchiveOutlined />,
+      icon: <InboxOutlined />,
       onClick: () => handleArchive(project.id),
     },
     {

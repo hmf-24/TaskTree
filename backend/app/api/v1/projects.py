@@ -1,3 +1,9 @@
+"""
+TaskTree 项目管理路由
+====================
+提供项目 CRUD、归档、成员管理等端点。
+所有操作都通过 get_project_with_access() 进行权限校验。
+"""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, case

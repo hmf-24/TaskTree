@@ -1,4 +1,10 @@
-from fastapi import APIRouter, Depends, Query
+"""
+TaskTree 通知路由
+================
+提供通知列表查询、单条标记已读、全部标记已读等端点。
+支持分页和按已读/未读状态过滤。
+"""
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from app.core.database import get_db
@@ -61,6 +67,7 @@ async def mark_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """将指定通知标记为已读。"""
     result = await db.execute(
         select(Notification).where(
             and_(Notification.id == notification_id, Notification.user_id == current_user.id)
@@ -69,7 +76,6 @@ async def mark_read(
     notification = result.scalar_one_or_none()
 
     if not notification:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="通知不存在")
 
     notification.is_read = True
@@ -83,9 +89,10 @@ async def mark_all_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """将当前用户的所有未读通知标记为已读。"""
     result = await db.execute(
         select(Notification).where(
-            and_(Notification.user_id == current_user.id, Notification.is_read == False)
+            and_(Notification.user_id == current_user.id, Notification.is_read.is_(False))
         )
     )
     notifications = result.scalars().all()

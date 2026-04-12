@@ -47,8 +47,8 @@ export default function ExportModal({ projectId, projectName, open, onClose }: E
           break;
       }
 
-      // 创建下载
-      const blob = new Blob([res], { type: mimeType });
+      // 创建下载 - axios 拦截器返回 response.data，对于 blob 请求它已经是 Blob 对象
+      const blob = res instanceof Blob ? res : new Blob([res], { type: mimeType });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

@@ -1,3 +1,9 @@
+"""
+TaskTree 认证路由
+================
+提供用户注册、登录、个人信息查看/修改、密码修改等端点；
+同时暴露 get_current_user 依赖注入函数供其他路由使用。
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +25,11 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> User:
+    """FastAPI 依赖注入：从请求头 Bearer Token 中解析当前登录用户。
+
+    Raises:
+        HTTPException 401: Token 无效/过期/缺少 sub 字段/用户不存在。
+    """
     token = credentials.credentials
     payload = decode_token(token)
     if not payload:
@@ -27,7 +38,15 @@ async def get_current_user(
             detail="Token无效或已过期"
         )
 
-    user_id = int(payload.get("sub"))
+    # 安全地提取 sub 字段，防止 None 导致 int() 崩溃
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token payload 无效：缺少 sub 字段"
+        )
+    user_id = int(sub)
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
@@ -42,6 +61,7 @@ async def get_current_user(
 
 @router.post("/register", response_model=MessageResponse)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+    """用户注册：校验邮箱唯一性后创建新用户。"""
     # 检查邮箱是否已存在
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none():
@@ -73,6 +93,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=MessageResponse)
 async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    """用户登录：验证邮箱+密码并返回 JWT Token。"""
     # 查找用户
     result = await db.execute(select(User).where(User.email == login_data.email))
     user = result.scalar_one_or_none()
@@ -98,6 +119,7 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.get("/me", response_model=MessageResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
+    """获取当前登录用户的个人信息。"""
     return MessageResponse(
         data={
             "id": current_user.id,
@@ -115,9 +137,11 @@ async def update_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if user_data.nickname:
+    """更新当前登录用户的个人信息（昵称/头像）。"""
+    # 使用 is not None 而非 truthy 判断，允许传入空字符串来清空字段
+    if user_data.nickname is not None:
         current_user.nickname = user_data.nickname
-    if user_data.avatar:
+    if user_data.avatar is not None:
         current_user.avatar = user_data.avatar
 
     await db.commit()
@@ -140,6 +164,7 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """修改密码：先验证旧密码正确后设置新密码。"""
     # 验证旧密码
     if not verify_password(password_data.old_password, current_user.password_hash):
         raise HTTPException(

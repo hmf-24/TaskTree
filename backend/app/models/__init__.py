@@ -1,24 +1,37 @@
+"""
+TaskTree 数据库模型定义
+======================
+本模块定义了 TaskTree 系统的所有 SQLAlchemy ORM 模型。
+包含 10 张核心表：users, projects, project_members, tasks,
+task_dependencies, task_tags, task_tag_relations, task_comments,
+task_attachments, notifications, operation_logs。
+
+Base 在此处统一定义，其他模块（如 database.py）从此处导入，
+避免多次创建 Base 实例导致 mapper 关联失效。
+"""
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, DeclarativeBase
 from datetime import datetime, timezone
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """SQLAlchemy 声明式基类（2.0 风格）"""
+    pass
 
 
 class User(Base):
-    """用户表"""
+    """用户表 - 存储系统注册用户的基本信息和凭证。"""
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
-    nickname = Column(String(100))
-    avatar = Column(String(500))
+    email = Column(String(255), unique=True, nullable=False, index=True, comment="登录邮箱，全局唯一")
+    password_hash = Column(String(255), nullable=False, comment="bcrypt 加密后的密码哈希")
+    nickname = Column(String(100), comment="用户昵称，用于界面展示")
+    avatar = Column(String(500), comment="头像 URL 或路径")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # 关联
+    # 关联关系
     owned_projects = relationship('Project', back_populates='owner')
     assigned_tasks = relationship('Task', back_populates='assignee')
     comments = relationship('TaskComment', back_populates='user')
@@ -26,21 +39,21 @@ class User(Base):
 
 
 class Project(Base):
-    """项目表"""
+    """项目表 - 任务树的顶层组织单位，每个项目可包含多个任务树。"""
     __tablename__ = 'projects'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    owner_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    start_date = Column(Date)
-    end_date = Column(Date)
-    status = Column(String(20), default='active', index=True)
-    is_archived = Column(Boolean, default=False)
+    name = Column(String(255), nullable=False, comment="项目名称")
+    description = Column(Text, comment="项目描述")
+    owner_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True, comment="项目所有者用户 ID")
+    start_date = Column(Date, comment="项目开始日期")
+    end_date = Column(Date, comment="项目截止日期")
+    status = Column(String(20), default='active', index=True, comment="项目状态: active / archived / deleted")
+    is_archived = Column(Boolean, default=False, comment="是否已归档")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # 关联
+    # 关联关系
     owner = relationship('User', back_populates='owned_projects')
     members = relationship('ProjectMember', back_populates='project', cascade='all, delete-orphan')
     tasks = relationship('Task', back_populates='project', cascade='all, delete-orphan')
@@ -48,13 +61,13 @@ class Project(Base):
 
 
 class ProjectMember(Base):
-    """项目成员表"""
+    """项目成员表 - 记录项目与用户的多对多关系及角色。"""
     __tablename__ = 'project_members'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    role = Column(String(20), default='viewer')
+    role = Column(String(20), default='viewer', comment="成员角色: owner / admin / member / viewer")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('project_id', 'user_id'),)
@@ -64,27 +77,27 @@ class ProjectMember(Base):
 
 
 class Task(Base):
-    """任务表"""
+    """任务表 - 核心数据模型，支持无限层级的树形结构（通过 parent_id 自引用）。"""
     __tablename__ = 'tasks'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
-    parent_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), index=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    assignee_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), index=True)
-    status = Column(String(20), default='pending', index=True)
-    priority = Column(String(10), default='medium')
-    progress = Column(Integer, default=0)
-    estimated_time = Column(Integer)
-    actual_time = Column(Integer)
-    start_date = Column(Date)
-    due_date = Column(Date)
-    sort_order = Column(Integer, default=0)
+    parent_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), index=True, comment="父任务 ID，NULL 表示根任务")
+    name = Column(String(255), nullable=False, comment="任务名称")
+    description = Column(Text, comment="任务描述")
+    assignee_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), index=True, comment="负责人用户 ID")
+    status = Column(String(20), default='pending', index=True, comment="任务状态: pending / in_progress / completed / cancelled")
+    priority = Column(String(10), default='medium', comment="优先级: high / medium / low")
+    progress = Column(Integer, default=0, comment="进度百分比 0-100")
+    estimated_time = Column(Integer, comment="预计耗时（分钟）")
+    actual_time = Column(Integer, comment="实际耗时（分钟）")
+    start_date = Column(Date, comment="开始日期")
+    due_date = Column(Date, comment="截止日期")
+    sort_order = Column(Integer, default=0, comment="同级任务排序序号，数值越小越靠前")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # 关联
+    # 关联关系
     project = relationship('Project', back_populates='tasks')
     parent = relationship('Task', remote_side=[id], backref='children')
     assignee = relationship('User', back_populates='assigned_tasks')
@@ -96,12 +109,12 @@ class Task(Base):
 
 
 class TaskDependency(Base):
-    """任务依赖关系表"""
+    """任务依赖关系表 - 记录任务间的前置依赖（A 完成后 B 才能开始）。"""
     __tablename__ = 'task_dependencies'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
-    dependent_task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True, comment="前置任务 ID（被依赖方）")
+    dependent_task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True, comment="后续任务 ID（依赖方）")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('task_id', 'dependent_task_id'),)
@@ -111,13 +124,13 @@ class TaskDependency(Base):
 
 
 class TaskTag(Base):
-    """任务标签表"""
+    """任务标签表 - 项目级别的彩色标签定义。"""
     __tablename__ = 'task_tags'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
-    name = Column(String(50), nullable=False)
-    color = Column(String(20))
+    name = Column(String(50), nullable=False, comment="标签名称")
+    color = Column(String(20), comment="标签颜色（HEX 格式如 #f5222d）")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('project_id', 'name'),)
@@ -127,7 +140,7 @@ class TaskTag(Base):
 
 
 class TaskTagRelation(Base):
-    """任务标签关联表"""
+    """任务-标签关联表 - 多对多关联（复合主键）。"""
     __tablename__ = 'task_tag_relations'
 
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True)
@@ -138,13 +151,13 @@ class TaskTagRelation(Base):
 
 
 class TaskComment(Base):
-    """任务评论表"""
+    """任务评论表 - 存储任务下的讨论和评论内容。"""
     __tablename__ = 'task_comments'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    content = Column(Text, nullable=False)
+    content = Column(Text, nullable=False, comment="评论文本内容")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     task = relationship('Task', back_populates='comments')
@@ -152,49 +165,49 @@ class TaskComment(Base):
 
 
 class TaskAttachment(Base):
-    """任务附件表"""
+    """任务附件表 - 存储上传文件的元数据（文件本身存储在文件系统中）。"""
     __tablename__ = 'task_attachments'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    filename = Column(String(255), nullable=False)
-    file_path = Column(String(500), nullable=False)
-    file_size = Column(Integer)
-    mime_type = Column(String(100))
+    filename = Column(String(255), nullable=False, comment="原始文件名")
+    file_path = Column(String(500), nullable=False, comment="服务器存储路径")
+    file_size = Column(Integer, comment="文件大小（字节）")
+    mime_type = Column(String(100), comment="MIME 类型如 image/png")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     task = relationship('Task', back_populates='attachments')
 
 
 class Notification(Base):
-    """通知表"""
+    """通知表 - 存储用户的系统通知（任务变更、评论、@提及等）。"""
     __tablename__ = 'notifications'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    type = Column(String(50), nullable=False)
-    title = Column(String(255))
-    content = Column(Text)
-    related_id = Column(Integer)
-    related_type = Column(String(50))
-    is_read = Column(Boolean, default=False)
+    type = Column(String(50), nullable=False, comment="通知类型: task_status / task_assign / comment / mention")
+    title = Column(String(255), comment="通知标题")
+    content = Column(Text, comment="通知正文")
+    related_id = Column(Integer, comment="关联对象 ID（如任务 ID）")
+    related_type = Column(String(50), comment="关联对象类型: task / project / comment")
+    is_read = Column(Boolean, default=False, comment="是否已读")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship('User', back_populates='notifications')
 
 
 class OperationLog(Base):
-    """操作日志表"""
+    """操作日志表 - 记录用户对项目/任务的所有变更操作，用于审计追踪。"""
     __tablename__ = 'operation_logs'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    project_id = Column(Integer, ForeignKey('projects.id', ondelete='SET NULL'), index=True)
-    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='SET NULL'), index=True)
-    action = Column(String(50), nullable=False)
-    old_value = Column(Text)
-    new_value = Column(Text)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True, comment="操作者用户 ID")
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='SET NULL'), index=True, comment="关联项目 ID")
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='SET NULL'), index=True, comment="关联任务 ID")
+    action = Column(String(50), nullable=False, comment="操作类型: create / update / delete / move 等")
+    old_value = Column(Text, comment="变更前的值（JSON 格式）")
+    new_value = Column(Text, comment="变更后的值（JSON 格式）")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     user = relationship('User')
