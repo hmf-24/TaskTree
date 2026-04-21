@@ -12,15 +12,40 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session_maker
-from app.models import User, Task, Project, UserNotificationSettings, NotificationLog
+from app.models import User, Task, Project, UserNotificationSettings, NotificationLog, SchedulerState
 
 
 class ReminderScheduler:
     """智能提醒调度器"""
 
+    STATE_KEY = "last_run_at"
+
     def __init__(self):
         self.session_maker = get_session_maker()
         self.is_running = False
+
+    async def _save_state(self, db: AsyncSession):
+        """保存调度状态"""
+        result = await db.execute(
+            select(SchedulerState).where(SchedulerState.key == self.STATE_KEY)
+        )
+        state = result.scalar_one_or_none()
+        if state:
+            state.value = datetime.now(timezone.utc).isoformat()
+        else:
+            state = SchedulerState(key=self.STATE_KEY, value=datetime.now(timezone.utc).isoformat())
+            db.add(state)
+        await db.commit()
+
+    async def _load_state(self, db: AsyncSession) -> Optional[datetime]:
+        """加载调度状态"""
+        result = await db.execute(
+            select(SchedulerState).where(SchedulerState.key == self.STATE_KEY)
+        )
+        state = result.scalar_one_or_none()
+        if state and state.value:
+            return datetime.fromisoformat(state.value)
+        return None
 
     async def start(self, interval_minutes: int = 30):
         """启动定时任务
@@ -33,7 +58,13 @@ class ReminderScheduler:
 
         while self.is_running:
             try:
+                async with self.session_maker() as db:
+                    last_run = await self._load_state(db)
+                    if last_run:
+                        print(f"📌 从上次位置继续: {last_run.isoformat()}")
                 await self.check_and_send_reminders()
+                async with self.session_maker() as db:
+                    await self._save_state(db)
             except Exception as e:
                 print(f"❌ 提醒任务执行失败: {e}")
 
@@ -99,6 +130,21 @@ class ReminderScheduler:
                 print(f"⏭️ 用户 {settings.user_id} 今日已达上限 ({today_count}/{settings.daily_limit})")
                 return False
 
+        # 消息去重：检查最近6小时内是否已发送过
+        six_hours_ago = datetime.now(timezone.utc) - timedelta(hours=6)
+        result = await db.execute(
+            select(NotificationLog).where(
+                and_(
+                    NotificationLog.user_id == settings.user_id,
+                    NotificationLog.sent_at >= six_hours_ago,
+                    NotificationLog.is_manual == is_manual
+                )
+            )
+        )
+        recent_logs = result.scalars().all()
+        recent_task_ids = {log.task_id for log in recent_logs if log.task_id}
+        print(f"📋 最近6小时已发送任务: {recent_task_ids}")
+
         # 解析规则
         rules = json.loads(settings.rules) if settings.rules else []
 
@@ -108,15 +154,23 @@ class ReminderScheduler:
         )
         projects = result.scalars().all()
 
-        # 获取所有任务
+        # 获取所有任务（排除已完成和最近已提醒的）
         all_tasks = []
         for project in projects:
             result = await db.execute(
-                select(Task).where(Task.project_id == project.id)
+                select(Task).where(
+                    and_(
+                        Task.project_id == project.id,
+                        Task.status != "completed"
+                    )
+                )
             )
             tasks = result.scalars().all()
 
             for task in tasks:
+                # 跳过6小时内已发送过的任务
+                if task.id in recent_task_ids:
+                    continue
                 all_tasks.append({
                     "id": task.id,
                     "project_id": task.id,
@@ -143,9 +197,14 @@ class ReminderScheduler:
 
         # 使用用户配置的大模型
         from app.services.llm_service import LLMService
+        from app.core.crypto import decrypt_api_key
+
+        # 解密API Key
+        api_key = decrypt_api_key(settings.llm_api_key_encrypted) if settings.llm_api_key_encrypted else None
+
         llm_service = LLMService(
             provider=settings.llm_provider or "minmax",
-            api_key=settings.llm_api_key,
+            api_key=api_key,
             model=settings.llm_model,
             group_id=settings.llm_group_id
         )

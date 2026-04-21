@@ -221,9 +221,9 @@ class UserNotificationSettings(Base):
     user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=False, index=True)
     dingtalk_webhook = Column(String(500), comment="钉钉Webhook URL")
     dingtalk_secret = Column(String(100), comment="钉钉签名密钥")
-    # 大模型配置
+    # 大模型配置（llm_api_key加密存储）
     llm_provider = Column(String(20), comment="大模型提供商")
-    llm_api_key = Column(String(200), comment="大模型API Key")
+    llm_api_key_encrypted = Column(Text, comment="大模型API Key（加密）")
     llm_model = Column(String(50), comment="大模型名称")
     llm_group_id = Column(String(100), comment="Minimax Group ID")
     rules = Column(Text, comment="JSON格式的自定义规则")
@@ -253,3 +253,13 @@ class NotificationLog(Base):
     user = relationship('User')
     task = relationship('Task')
     project = relationship('Project')
+
+
+class SchedulerState(Base):
+    """调度器状态表 - 记录调度器运行状态"""
+    __tablename__ = 'scheduler_states'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(50), unique=True, nullable=False, index=True, comment="状态键")
+    value = Column(Text, comment="状态值(JSON)")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

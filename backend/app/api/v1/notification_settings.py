@@ -34,6 +34,9 @@ async def get_current_user(
 
 
 # 默认提醒规则模板
+# 加密工具
+from app.core.crypto import encrypt_api_key, decrypt_api_key
+
 DEFAULT_RULES = [
     {
         "id": "due_date_remind",
@@ -140,7 +143,7 @@ async def create_or_update_settings(
         if settings_data.llm_provider is not None:
             settings.llm_provider = settings_data.llm_provider
         if settings_data.llm_api_key is not None:
-            settings.llm_api_key = settings_data.llm_api_key
+            settings.llm_api_key_encrypted = encrypt_api_key(settings_data.llm_api_key)
         if settings_data.llm_model is not None:
             settings.llm_model = settings_data.llm_model
         if settings_data.llm_group_id is not None:
@@ -158,7 +161,7 @@ async def create_or_update_settings(
             dingtalk_webhook=settings_data.dingtalk_webhook,
             dingtalk_secret=settings_data.dingtalk_secret,
             llm_provider=settings_data.llm_provider or "minmax",
-            llm_api_key=settings_data.llm_api_key,
+            llm_api_key_encrypted=encrypt_api_key(settings_data.llm_api_key) if settings_data.llm_api_key else None,
             llm_model=settings_data.llm_model,
             llm_group_id=settings_data.llm_group_id,
             rules=rules_json,
