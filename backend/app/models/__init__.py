@@ -93,7 +93,7 @@ class Task(Base):
     actual_time = Column(Integer, comment="实际耗时（分钟）")
     start_date = Column(Date, comment="开始日期")
     due_date = Column(Date, comment="截止日期")
-    sort_order = Column(Integer, default=0, comment="同级任务排序序号，数值越小越靠前")
+    sort_order = Column(Integer, default=0, index=True, comment="同级任务排序序号，数值越小越靠前")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
