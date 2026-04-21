@@ -144,6 +144,24 @@ export const notificationsAPI = {
   markAllRead: () => api.put('/notifications/read-all'),
 };
 
+// 智能提醒设置 API
+export const reminderSettingsAPI = {
+  getSettings: () => api.get('/notifications/settings'),
+  updateSettings: (data: {
+    dingtalk_webhook?: string;
+    dingtalk_secret?: string;
+    minmax_api_key?: string;
+    minmax_group_id?: string;
+    rules?: any[];
+    enabled?: boolean;
+    daily_limit?: number;
+  }) => api.post('/notifications/settings', data),
+  getLogs: (params?: { page?: number; page_size?: number }) =>
+    api.get('/notifications/logs', { params }),
+  getRulesTemplate: () => api.get('/notifications/rules/template'),
+  markRead: (logId: number) => api.post(`/notifications/callback/${logId}`),
+};
+
 // Search API
 export const searchAPI = {
   search: (params: { q: string; type?: string; project_id?: number }) =>

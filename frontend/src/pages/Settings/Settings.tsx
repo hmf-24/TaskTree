@@ -5,29 +5,34 @@ import {
   Input,
   Button,
   Avatar,
-  Upload,
   Divider,
   message,
   Tabs,
   Switch,
-  Modal,
+  InputNumber,
+  Alert,
+  Space,
+  Tag,
 } from 'antd';
 import {
   UserOutlined,
   LockOutlined,
-  UploadOutlined,
   SaveOutlined,
-  ExclamationCircleOutlined,
+  BellOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
-import { authAPI } from '../../api';
+import { authAPI, reminderSettingsAPI } from '../../api';
 import { useAuthStore } from '../../stores/auth';
 
 export default function Settings() {
   const { user, setAuth, token } = useAuthStore();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
+  const [reminderForm] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [loadingReminder, setLoadingReminder] = useState(false);
+  const [reminderSettings, setReminderSettings] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -37,6 +42,30 @@ export default function Settings() {
       });
     }
   }, [user, profileForm]);
+
+  // ---- 加载智能提醒设置 ----
+  useEffect(() => {
+    const loadReminderSettings = async () => {
+      try {
+        const res = await reminderSettingsAPI.getSettings();
+        if (res.code === 200 && res.data) {
+          setReminderSettings(res.data);
+          reminderForm.setFieldsValue({
+            enabled: res.data.enabled,
+            dingtalk_webhook: res.data.dingtalk_webhook,
+            dingtalk_secret: res.data.dingtalk_secret,
+            minmax_api_key: res.data.minmax_api_key,
+            minmax_group_id: res.data.minmax_group_id,
+            daily_limit: res.data.daily_limit || 5,
+            rules: res.data.rules,
+          });
+        }
+      } catch (error) {
+        console.error('加载提醒设置失败:', error);
+      }
+    };
+    loadReminderSettings();
+  }, [reminderForm]);
 
   // ---- 个人资料 ----
   const handleSaveProfile = async (values: any) => {
@@ -88,6 +117,33 @@ export default function Settings() {
       message.error(error.message || '修改失败');
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  // ---- 保存智能提醒设置 ----
+  const handleSaveReminder = async (values: any) => {
+    setLoadingReminder(true);
+    try {
+      const data = {
+        enabled: values.enabled,
+        dingtalk_webhook: values.dingtalk_webhook,
+        dingtalk_secret: values.dingtalk_secret,
+        minmax_api_key: values.minmax_api_key,
+        minmax_group_id: values.minmax_group_id,
+        daily_limit: values.daily_limit || 5,
+        rules: values.rules,
+      };
+      const res = await reminderSettingsAPI.updateSettings(data);
+      if (res.code === 200) {
+        message.success('智能提醒设置已保存');
+        setReminderSettings(res.data);
+      } else {
+        message.error(res.message || '保存失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '保存失败');
+    } finally {
+      setLoadingReminder(false);
     }
   };
 
@@ -199,6 +255,138 @@ export default function Settings() {
                 修改密码
               </Button>
             </Form.Item>
+          </Form>
+        </Card>
+      ),
+    },
+    {
+      key: 'reminder',
+      label: (
+        <span>
+          <BellOutlined /> 智能提醒
+        </span>
+      ),
+      children: (
+        <Card bordered={false}>
+          <Alert
+            message="智能提醒说明"
+            description="开启智能提醒后，系统会定期使用大模型分析您的任务，并通过钉钉发送个性化提醒通知。您可以自定义提醒规则和每日上限。"
+            type="info"
+            showIcon
+            style={{ marginBottom: 24 }}
+          />
+
+          <Form
+            form={reminderForm}
+            layout="vertical"
+            onFinish={handleSaveReminder}
+            style={{ maxWidth: 600 }}
+          >
+            <Divider orientation="left">基础设置</Divider>
+
+            <Form.Item label="启用智能提醒" name="enabled" valuePropName="checked">
+              <Switch checkedChildren="已启用" unCheckedChildren="已禁用" />
+            </Form.Item>
+
+            <Form.Item
+              label="钉钉 Webhook 地址"
+              name="dingtalk_webhook"
+              tooltip="在钉钉群聊中添加机器人，获取Webhook地址并复制到这里"
+            >
+              <Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" />
+            </Form.Item>
+
+            <Form.Item
+              label="钉钉密钥（可选）"
+              name="dingtalk_secret"
+              tooltip="开启机器人安全设置后需要填写密钥"
+            >
+              <Input.Password placeholder="SEC开头的密钥（可选）" />
+            </Form.Item>
+
+            <Divider orientation="left">大模型配置</Divider>
+
+            <Alert
+              message="Minimax API 配置"
+              description="请填写您的Minimax API密钥以启用智能分析功能。密钥将保存在您的账户设置中。"
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+
+            <Form.Item
+              label="Minimax API Key"
+              name="minmax_api_key"
+              tooltip="从Minimax开放平台获取API Key"
+            >
+              <Input.Password placeholder="输入您的Minimax API Key" />
+            </Form.Item>
+
+            <Form.Item
+              label="Minimax Group ID"
+              name="minmax_group_id"
+              tooltip="从Minimax开放平台获取Group ID（可选，部分模型需要）"
+            >
+              <Input placeholder="输入您的Minimax Group ID（可选）" />
+            </Form.Item>
+
+            <Divider orientation="left">高级设置</Divider>
+
+            <Form.Item label="每日提醒上限" name="daily_limit" tooltip="每天最多发送的提醒次数">
+              <InputNumber min={1} max={20} defaultValue={5} style={{ width: 120 }} />
+            </Form.Item>
+
+            <Form.Item
+              label="自定义规则（JSON）"
+              name="rules"
+              tooltip="高级用户可自定义提醒规则，JSON格式"
+            >
+              <Input.TextArea
+                rows={6}
+                placeholder={`[
+  {
+    "id": "overdue",
+    "name": "任务逾期提醒",
+    "enabled": true,
+    "condition": "overdue",
+    "hours_before": 0
+  },
+  {
+    "id": "due_soon",
+    "name": "即将到期提醒",
+    "enabled": true,
+    "condition": "due_soon",
+    "hours_before": 24
+  }
+]`}
+                style={{ fontFamily: 'monospace' }}
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Space>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={loadingReminder}
+                  icon={<SaveOutlined />}
+                >
+                  保存设置
+                </Button>
+              </Space>
+            </Form.Item>
+
+            {reminderSettings && (
+              <>
+                <Divider />
+                <div style={{ color: '#666', fontSize: 13 }}>
+                  <p>当前状态：{reminderSettings.enabled ? '已启用' : '已禁用'}</p>
+                  <p>
+                    今日已发送：<Tag color="blue">{reminderSettings.today_count || 0}</Tag> 条
+                  </p>
+                </div>
+              </>
+            )}
           </Form>
         </Card>
       ),

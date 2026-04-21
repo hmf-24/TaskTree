@@ -32,5 +32,12 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
 
+    # ---- 智能提醒 (Minimax) ----
+    MINMAX_API_KEY: str = ""
+    MINMAX_GROUP_ID: str = ""
+
+    # ---- 智能提醒调度 ----
+    REMINDER_INTERVAL_MINUTES: int = 30  # 定时检查间隔
+
 
 settings = Settings()

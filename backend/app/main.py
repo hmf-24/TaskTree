@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import init_db
-from app.api.v1 import auth, projects, tasks, users, export, notifications
+from app.api.v1 import auth, projects, tasks, users, export, notifications, notification_settings
 
 
 @asynccontextmanager
@@ -42,6 +42,7 @@ app.include_router(projects.router, prefix="/api/v1/tasktree/projects", tags=["�
 app.include_router(tasks.router, prefix="/api/v1/tasktree", tags=["任务"])
 app.include_router(export.router, prefix="/api/v1/tasktree/projects", tags=["导入导出"])
 app.include_router(notifications.router, prefix="/api/v1/tasktree/notifications", tags=["通知"])
+app.include_router(notification_settings.router, prefix="/api/v1/tasktree", tags=["智能提醒"])
 
 @app.get("/")
 def root():

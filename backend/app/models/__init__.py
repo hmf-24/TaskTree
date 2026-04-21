@@ -211,3 +211,41 @@ class OperationLog(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     user = relationship('User')
+
+
+class UserNotificationSettings(Base):
+    """用户通知设置表 - 存储用户的钉钉Webhook和自定义规则。"""
+    __tablename__ = 'user_notification_settings'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=False, index=True)
+    dingtalk_webhook = Column(String(500), comment="钉钉Webhook URL")
+    dingtalk_secret = Column(String(100), comment="钉钉签名密钥")
+    minmax_api_key = Column(String(200), comment="Minimax API Key")
+    minmax_group_id = Column(String(100), comment="Minimax Group ID")
+    rules = Column(Text, comment="JSON格式的自定义规则")
+    enabled = Column(Boolean, default=True, comment="是否启用智能提醒")
+    daily_limit = Column(Integer, default=5, comment="每日提醒上限")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship('User', backref='notification_settings')
+
+
+class NotificationLog(Base):
+    """通知发送记录表 - 记录每次钉钉推送，用于已读回执。"""
+    __tablename__ = 'notification_logs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='SET NULL'), index=True)
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='SET NULL'), index=True)
+    message_id = Column(String(100), comment="钉钉返回的消息ID")
+    message_content = Column(Text, comment="消息内容摘要")
+    is_read = Column(Boolean, default=False, comment="是否已读")
+    read_at = Column(DateTime, comment="阅读时间")
+    sent_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), comment="发送时间")
+
+    user = relationship('User')
+    task = relationship('Task')
+    project = relationship('Project')

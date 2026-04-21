@@ -263,6 +263,51 @@ class NotificationReadRequest(BaseModel):
     is_read: bool = True
 
 
+# ========== 智能提醒设置 ==========
+
+class ReminderRule(BaseModel):
+    """提醒规则"""
+    id: str
+    name: str
+    enabled: bool = True
+    condition: str  # due_date_remind, progress_stalled, dependency_unblocked, overdue_tasks
+    hours_before: Optional[int] = None
+    threshold_days: Optional[int] = None
+    repeat: list[str] = []  # ["08:00", "20:00"] 或 ["immediate"]
+
+
+class UserNotificationSettingsBase(BaseModel):
+    dingtalk_webhook: Optional[str] = None
+    dingtalk_secret: Optional[str] = None
+    minmax_api_key: Optional[str] = None
+    minmax_group_id: Optional[str] = None
+    rules: Optional[list[ReminderRule]] = None
+    enabled: bool = True
+    daily_limit: int = 5
+
+
+class UserNotificationSettingsCreate(UserNotificationSettingsBase):
+    pass
+
+
+class UserNotificationSettingsUpdate(BaseModel):
+    dingtalk_webhook: Optional[str] = None
+    dingtalk_secret: Optional[str] = None
+    minmax_api_key: Optional[str] = None
+    minmax_group_id: Optional[str] = None
+    rules: Optional[list[ReminderRule]] = None
+    enabled: Optional[bool] = None
+    daily_limit: Optional[int] = None
+
+
+class UserNotificationSettingsResponse(UserNotificationSettingsBase):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+
+
 # ========== 通用响应 ==========
 
 class PaginatedResponse(BaseModel):
