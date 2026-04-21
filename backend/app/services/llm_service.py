@@ -2,12 +2,13 @@
 TaskTree 大模型服务
 ================
 统一支持多种大模型提供商：Minimax、OpenAI、Anthropic。
-用于智能分析任务并生成提醒内容。
+用于智能分析任务并生成提醒内容和任务分类。
 """
 import json
 import os
+import re
 import httpx
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime, timedelta, timezone
 
 
@@ -15,7 +16,7 @@ class LLMService:
     """统一大模型服务"""
 
     PROVIDERS = {
-        "minmax": {
+        "minimax": {
             "name": "Minimax",
             "models": ["abab6.5s-chat", "abab6.5g-chat"],
             "default_model": "abab6.5s-chat"
@@ -45,116 +46,197 @@ class LLMService:
         self.group_id = group_id
         self.base_url = "https://api.minimax.chat/v1"
 
-    async def analyze_tasks(self, user_tasks: list, project_name: str) -> dict:
-        """分析任务数据，判断是否需要提醒
-
-        Args:
-            user_tasks: 用户任务列表
-            project_name: 项目名称
-
-        Returns:
-            {
-                "need_remind": bool,
-                "remind_reason": str,
-                "priority": "high/medium/low",
-                "message": str,
-                "tasks_to_remind": [task_ids],
-                "plan": str  # 大模型生成的规划建议
-            }
-        """
+    async def analyze_tasks(
+        self,
+        user_tasks: list,
+        project_name: str,
+        analysis_config: dict = None
+    ) -> dict:
+        """分析任务数据，判断是否需要提醒（多维度智能分析）"""
         if not user_tasks:
-            return {
-                "need_remind": False,
-                "remind_reason": "没有任务",
-                "priority": "low",
-                "message": "",
-                "tasks_to_remind": [],
-                "plan": ""
-            }
+            return self._empty_result()
 
-        # 如果没有配置API Key，使用降级分析
+        # 默认配置：启用所有分析维度
+        config = analysis_config or {
+            "overdue": True,
+            "progress_stalled": True,
+            "dependency_unblocked": True,
+            "team_load": True,
+            "complexity": True,
+            "risk_prediction": True
+        }
+
         if not self.api_key:
-            return self._fallback_analysis(user_tasks)
+            return self._fallback_analysis(user_tasks, config)
 
-        # 构建任务摘要
         task_summary = self._build_task_summary(user_tasks)
+        analysis_dims = self._build_analysis_dims(config)
 
-        prompt = f"""你是一个专业的任务管理顾问。请分析以下任务数据，判断是否需要提醒用户处理，并提供任务规划建议。
+        prompt = f"""你是一个专业的任务管理顾问。请分析以下任务数据：
 
 项目名称：{project_name}
-
 任务列表：
 {task_summary}
 
 请根据以下维度分析：
+{analysis_dims}
 
-1. 截止时间：是否有任务即将截止（24小时内）或已逾期？
-2. 进度落后：是否有任务长时间（3天以上）没有更新进度？
-3. 依赖阻塞：是否有前置任务已完成，可以开始的任务？
-4. 优先级：哪些任务应该优先处理？
-
-请返回JSON格式的分析结果（必须是有效的JSON）：
+返回JSON格式：
 {{
     "need_remind": true/false,
-    "remind_reason": "简短原因（不超过50字）",
+    "remind_reason": "简短原因",
     "priority": "high/medium/low",
-    "message": "给用户的提醒消息（Markdown格式，不超过200字）",
-    "tasks_to_remind": [需要提醒的任务ID列表],
-    "plan": "具体的任务规划建议（不超过300字）"
-}}
-
-注意：
-- 如果没有需要提醒的任务，need_remind 返回 false
-- plan字段提供具体的下一步行动建议，帮助用户更好地管理任务
-- 只返回JSON，不要其他内容"""
+    "message": "提醒消息(Markdown)",
+    "tasks_to_remind": [task_ids],
+    "plan": "规划建议",
+    "analysis": {{
+        "overdue": [{{"task_id": 1, "task_name": "name", "days_overdue": 2}}],
+        "progress_stalled": [{{"task_id": 2, "task_name": "name", "days_no_update": 5}}],
+        "dependency_unblocked": [{{"task_id": 3, "task_name": "name", "blocked_by": "name"}}],
+        "team_load": {{"concurrent_tasks": 5, "avg_progress": 45, "load_status": "normal/heavy/overloaded"}},
+        "complexity": [{{"task_id": 4, "task_name": "name", "complexity_score": 8}}],
+        "risk_prediction": [{{"task_id": 5, "task_name": "name", "risk_level": "high/medium/low"}}]
+    }}
+}}"""
 
         try:
             response = await self._call_api(prompt)
-            result = self._parse_response(response)
-            return result
+            return self._parse_response(response)
         except Exception as e:
             print(f"LLM API error: {e}")
-            # 降级处理：使用规则判断
-            return self._fallback_analysis(user_tasks)
+            return self._fallback_analysis(user_tasks, config)
+
+    async def analyze_task_complexity(
+        self,
+        task_info: dict,
+        user_context: dict = None
+    ) -> dict:
+        """分析单个任务的复杂度"""
+        if not self.api_key:
+            return self._simple_complexity_analysis(task_info)
+
+        prompt = f"""分析任务复杂度：
+
+任务：{task_info.get('name', '')}
+描述：{task_info.get('description', '')}
+预估：{task_info.get('estimated_time', 0)}h
+子任务：{task_info.get('subtasks_count', 0)}
+依赖：{task_info.get('dependencies_count', 0)}
+
+JSON：{{"complexity_score": 1-10, "complexity_level": "low/medium/high", "factors": [], "suggestions": []}}"""
+
+        try:
+            response = await self._call_api(prompt)
+            return self._parse_response(response)
+        except:
+            return self._simple_complexity_analysis(task_info)
+
+    async def generate_task_suggestions(
+        self,
+        tasks: list,
+        user_intent: str = None
+    ) -> dict:
+        """根据用户意图生成任务建议"""
+        if not self.api_key:
+            return {"schedule": [], "reason": "未配置API Key"}
+
+        task_summary = self._build_task_summary(tasks)
+        prompt = f"""根据用户意图安排任务：
+
+意图：{user_intent or "帮我安排工作"}
+任务：
+{task_summary}
+
+JSON：{{"schedule": [{{"task_id": 1, "suggested_time": "上午"}}], "priority_order": []}}"""
+
+        try:
+            response = await self._call_api(prompt)
+            return self._parse_response(response)
+        except:
+            return {"schedule": [], "reason": str(Exception)}
+
+    async def auto_classify_tasks(
+        self,
+        tasks: list,
+        project_context: dict = None
+    ) -> dict:
+        """自动分类任务"""
+        if not self.api_key:
+            return {"classifications": [], "tags": []}
+
+        task_summary = self._build_task_summary(tasks)
+        prompt = f"""分析并分类任务：
+
+项目：{project_context.get('name', '') if project_context else ''}
+任务：
+{task_summary}
+
+JSON：{{
+    "classifications": [{{"task_id": 1, "suggested_tags": ["重要"], "suggested_priority": "high", "category": "开发"}}],
+    "tags": [{{"name": "重要", "color": "#ff4d4f"}}]
+}}"""
+
+        try:
+            response = await self._call_api(prompt)
+            return self._parse_response(response)
+        except:
+            return {"classifications": [], "tags": []}
+
+    async def parse_user_intent(self, text: str) -> dict:
+        """解析用户自然语言输入的意图"""
+        if not self.api_key:
+            return self._simple_intent_parse(text)
+
+        prompt = f"""解析用户输入的提醒意图：
+
+输入：{text}
+
+JSON：{{
+    "intent": "schedule_remind/once_remind/auto_plan/custom_rule",
+    "params": {{"time": "15:00", "repeat": "daily/once", "conditions": []}},
+    "confidence": 0.9
+}}"""
+
+        try:
+            response = await self._call_api(prompt)
+            return self._parse_response(response)
+        except:
+            return self._simple_intent_parse(text)
 
     def _build_task_summary(self, tasks: list) -> str:
         """构建任务摘要"""
         lines = []
         now = datetime.now(timezone.utc)
-
         for task in tasks:
-            due = task.get("due_date")
+            due = task.get("due_date", "")
             status = task.get("status", "pending")
             progress = task.get("progress", 0)
-            updated = task.get("updated_at", "")
-
-            # 计算剩余时间
             remaining = ""
             if due:
                 try:
                     due_date = datetime.fromisoformat(due.replace("Z", "+00:00"))
-                    if due_date > now:
-                        delta = due_date - now
-                        remaining = f"剩余{delta.days}天"
-                    else:
-                        remaining = "已逾期"
+                    remaining = f"剩余{(due_date - now).days}天" if due_date > now else "已逾期"
                 except:
                     pass
-
-            # 更新时间
-            days_ago = ""
-            if updated:
-                try:
-                    updated_date = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                    delta = now - updated_date
-                    days_ago = f"距今{delta.days}天"
-                except:
-                    pass
-
-            line = f"- 任务{task['id']}: {task['name']} | 状态:{status} | 进度:{progress}% | 截止:{remaining or '无'} | 更新:{days_ago or '无'}"
-            lines.append(line)
-
+            lines.append(f"- 任务{task['id']}: {task['name']} | {status} | {progress}% | {remaining}")
         return "\n".join(lines) if lines else "暂无任务"
+
+    def _build_analysis_dims(self, config: dict) -> str:
+        """构建分析维度"""
+        dims = []
+        if config.get("overdue"):
+            dims.append("1. 截止时间：是否逾期或即将截止？")
+        if config.get("progress_stalled"):
+            dims.append("2. 进度落后：3天以上无更新？")
+        if config.get("dependency_unblocked"):
+            dims.append("3. 依赖解除：前置任务完成可开始？")
+        if config.get("team_load"):
+            dims.append("4. 团队负荷：并发任务数量？")
+        if config.get("complexity"):
+            dims.append("5. 任务复杂度：哪些最复杂？")
+        if config.get("risk_prediction"):
+            dims.append("6. 风险预测：哪些可能延期？")
+        return "\n".join(dims)
 
     async def _call_api(self, prompt: str) -> str:
         """调用大模型API"""
@@ -164,18 +246,10 @@ class LLMService:
             return await self._call_openai(prompt)
         elif self.provider == "anthropic":
             return await self._call_anthropic(prompt)
-        else:
-            raise Exception(f"Unknown provider: {self.provider}")
+        raise Exception(f"Unknown provider: {self.provider}")
 
     async def _call_minimax(self, prompt: str) -> str:
-        """调用 Minimax API"""
         url = f"{self.base_url}/text/chatcompletion_v2"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
         payload = {
             "model": self.model or "abab6.5s-chat",
             "messages": [
@@ -183,35 +257,23 @@ class LLMService:
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.3,
-            "max_tokens": 1000
+            "max_tokens": 1500
         }
-
         if self.group_id:
             payload["group_id"] = self.group_id
-
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                headers=headers,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
                 json=payload,
                 timeout=30.0
             )
-
             if response.status_code != 200:
-                raise Exception(f"Minimax API error: {response.status_code}")
-
-            data = response.json()
-            return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                raise Exception(f"API error: {response.status_code}")
+            return response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
 
     async def _call_openai(self, prompt: str) -> str:
-        """调用 OpenAI API"""
         url = "https://api.openai.com/v1/chat/completions"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
         payload = {
             "model": self.model or "gpt-4o-mini",
             "messages": [
@@ -219,60 +281,40 @@ class LLMService:
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.3,
-            "max_tokens": 1000
+            "max_tokens": 1500
         }
-
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                headers=headers,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
                 json=payload,
                 timeout=30.0
             )
-
             if response.status_code != 200:
-                raise Exception(f"OpenAI API error: {response.status_code}")
-
-            data = response.json()
-            return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                raise Exception(f"API error: {response.status_code}")
+            return response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
 
     async def _call_anthropic(self, prompt: str) -> str:
-        """调用 Anthropic API"""
         url = "https://api.anthropic.com/v1/messages"
-
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json"
-        }
-
         payload = {
             "model": self.model or "claude-sonnet-4-20250514",
-            "max_tokens": 1000,
+            "max_tokens": 1500,
             "system": "你是一个专业的任务管理助手。",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
+            "messages": [{"role": "user", "content": prompt}]
         }
-
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                headers=headers,
+                headers={"x-api-key": self.api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
                 json=payload,
                 timeout=30.0
             )
-
             if response.status_code != 200:
-                raise Exception(f"Anthropic API error: {response.status_code}")
-
-            data = response.json()
-            return data.get("content", [{}])[0].get("text", "")
+                raise Exception(f"API error: {response.status_code}")
+            return response.json().get("content", [{}])[0].get("text", "")
 
     def _parse_response(self, response: str) -> dict:
-        """解析 API 响应"""
         try:
-            import re
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
@@ -282,23 +324,40 @@ class LLMService:
                     "priority": data.get("priority", "low"),
                     "message": data.get("message", ""),
                     "tasks_to_remind": data.get("tasks_to_remind", []),
-                    "plan": data.get("plan", "")
+                    "plan": data.get("plan", ""),
+                    "analysis": data.get("analysis", {})
                 }
         except:
             pass
+        return self._empty_result()
 
-        return self._fallback_analysis([])
+    def _empty_result(self) -> dict:
+        return {
+            "need_remind": False,
+            "remind_reason": "",
+            "priority": "low",
+            "message": "",
+            "tasks_to_remind": [],
+            "plan": "",
+            "analysis": {}
+        }
 
-    def _fallback_analysis(self, tasks: list) -> dict:
-        """降级分析：使用简单规则判断"""
+    def _fallback_analysis(self, tasks: list, config: dict) -> dict:
         now = datetime.now(timezone.utc)
         need_remind = False
         reason = ""
         priority = "low"
         task_ids = []
+        analysis = {
+            "overdue": [],
+            "progress_stalled": [],
+            "dependency_unblocked": [],
+            "team_load": {"concurrent_tasks": 0, "avg_progress": 0, "load_status": "normal"},
+            "complexity": [],
+            "risk_prediction": []
+        }
 
         for task in tasks:
-            # 检查逾期
             if task.get("due_date"):
                 try:
                     due = datetime.fromisoformat(task["due_date"].replace("Z", "+00:00"))
@@ -307,19 +366,7 @@ class LLMService:
                         reason = "有逾期任务"
                         priority = "high"
                         task_ids.append(task["id"])
-                except:
-                    pass
-
-            # 检查即将截止（24小时内）
-            if not need_remind and task.get("due_date"):
-                try:
-                    due = datetime.fromisoformat(task["due_date"].replace("Z", "+00:00"))
-                    delta = due - now
-                    if 0 < delta.total_seconds() < 86400:
-                        need_remind = True
-                        reason = "有任务即将截止"
-                        priority = "high"
-                        task_ids.append(task["id"])
+                        analysis["overdue"].append({"task_id": task["id"], "task_name": task["name"]})
                 except:
                     pass
 
@@ -327,11 +374,31 @@ class LLMService:
             "need_remind": need_remind,
             "remind_reason": reason,
             "priority": priority,
-            "message": f"您有{len(task_ids)}个任务需要关注" if need_remind else "",
+            "message": f"您有{len(task_ids)}个任务需要关注",
             "tasks_to_remind": task_ids,
-            "plan": "请优先处理逾期或即将到期的任务" if need_remind else ""
+            "plan": "请优先处理逾期任务",
+            "analysis": analysis
         }
 
+    def _simple_complexity_analysis(self, task_info: dict) -> dict:
+        score = min(3 + (task_info.get("estimated_time", 0) // 4) + (task_info.get("subtasks_count", 0) // 2), 10)
+        level = "low" if score <= 3 else "medium" if score <= 6 else "high"
+        return {"complexity_score": score, "complexity_level": level, "factors": [], "suggestions": []}
 
-# 全局服务实例
+    def _simple_intent_parse(self, text: str) -> dict:
+        intent = "custom_rule"
+        params = {"repeat": "once", "conditions": []}
+        confidence = 0.5
+        if "每天" in text:
+            params["repeat"] = "daily"
+            confidence = 0.8
+        elif "每周" in text:
+            params["repeat"] = "weekly"
+            confidence = 0.8
+        match = re.search(r"(\d+)[点时]", text)
+        if match:
+            params["time"] = f"{match.group(1)}:00"
+        return {"intent": intent, "params": params, "raw": text, "confidence": confidence}
+
+
 llm_service = LLMService()

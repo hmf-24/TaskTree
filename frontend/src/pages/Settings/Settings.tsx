@@ -66,6 +66,9 @@ export default function Settings() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [loadingReminder, setLoadingReminder] = useState(false);
   const [reminderSettings, setReminderSettings] = useState<any>(null);
+  const [triggering, setTriggering] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [statsData, setStatsData] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -181,6 +184,38 @@ export default function Settings() {
       message.error(error.message || '保存失败');
     } finally {
       setLoadingReminder(false);
+    }
+  };
+
+  // ---- 手动触发提醒 ----
+  const handleTriggerReminder = async () => {
+    setTriggering(true);
+    try {
+      const res = await reminderSettingsAPI.trigger();
+      if (res.code === 200) {
+        message.success('提醒已发送');
+      } else {
+        message.error(res.message || '发送失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '发送失败');
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  // ---- 加载统计 ----
+  const handleLoadStats = async (days: number = 7) => {
+    setLoadingStats(true);
+    try {
+      const res = await reminderSettingsAPI.getStats(days);
+      if (res.code === 200) {
+        setStatsData(res.data);
+      }
+    } catch (error) {
+      console.error('加载统计失败:', error);
+    } finally {
+      setLoadingStats(false);
     }
   };
 
@@ -400,6 +435,31 @@ export default function Settings() {
               </Form.Item>
             )}
 
+            <Divider orientation="left">分析维度配置</Divider>
+
+            <Form.Item
+              label="启用分析维度"
+              tooltip="选择要启用哪些智能分析维度"
+            >
+              <Space direction="vertical">
+                <Form.Item name={['analysis_config', 'overdue']} valuePropName="checked">
+                  <Switch>逾期检测</Switch>
+                </Form.Item>
+                <Form.Item name={['analysis_config', 'progress_stalled']} valuePropName="checked">
+                  <Switch>进度落后检测</Switch>
+                </Form.Item>
+                <Form.Item name={['analysis_config', 'dependency_unblocked']} valuePropName="checked">
+                  <Switch>依赖解除检测</Switch>
+                </Form.Item>
+                <Form.Item name={['analysis_config', 'team_load']} valuePropName="checked">
+                  <Switch>团队负荷分析</Switch>
+                </Form.Item>
+                <Form.Item name={['analysis_config', 'risk_prediction']} valuePropName="checked">
+                  <Switch>风险预测</Switch>
+                </Form.Item>
+              </Space>
+            </Form.Item>
+
             <Divider orientation="left">高级设置</Divider>
 
             <Form.Item label="每日提醒上限" name="daily_limit" tooltip="每天最多发送的提醒次数">
@@ -443,8 +503,31 @@ export default function Settings() {
                 >
                   保存设置
                 </Button>
+                <Button
+                  onClick={handleTriggerReminder}
+                  loading={triggering}
+                >
+                  立即提醒
+                </Button>
+                <Button onClick={() => handleLoadStats(7)} loading={loadingStats}>
+                  查看统计
+                </Button>
               </Space>
             </Form.Item>
+
+            {statsData && (
+              <Alert
+                message={`统计报表 (近${statsData.period_days}天)`}
+                description={
+                  <div>
+                    <p>总发送: {statsData.total} 条</p>
+                    <p>已读: {statsData.read_count} 条 ({statsData.read_rate}%)</p>
+                  </div>
+                }
+                type="info"
+                style={{ marginTop: 16 }}
+              />
+            )}
 
             {reminderSettings && (
               <>

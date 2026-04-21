@@ -154,6 +154,7 @@ export const reminderSettingsAPI = {
     llm_api_key?: string;
     llm_model?: string;
     llm_group_id?: string;
+    analysis_config?: object;
     rules?: any[];
     enabled?: boolean;
     daily_limit?: number;
@@ -162,6 +163,11 @@ export const reminderSettingsAPI = {
     api.get('/notifications/logs', { params }),
   getRulesTemplate: () => api.get('/notifications/rules/template'),
   markRead: (logId: number) => api.post(`/notifications/callback/${logId}`),
+  // 新增功能
+  trigger: () => api.post('/notifications/trigger'),
+  getStats: (days?: number) => api.get('/notifications/stats', { params: { days } }),
+  parseIntent: (text: string) => api.post('/notifications/intent/parse', { text }),
+  autoClassify: (projectId: number) => api.post('/notifications/tasks/auto-classify', { project_id: projectId }),
 };
 
 // Search API

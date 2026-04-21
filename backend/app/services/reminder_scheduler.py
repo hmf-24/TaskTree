@@ -123,6 +123,15 @@ class ReminderScheduler:
         if not all_tasks:
             return
 
+        # 解析分析配置
+        config = {}
+        if settings.analysis_config:
+            import json
+            try:
+                config = json.loads(settings.analysis_config)
+            except:
+                pass
+
         # 使用用户配置的大模型
         from app.services.llm_service import LLMService
         llm_service = LLMService(
@@ -134,7 +143,8 @@ class ReminderScheduler:
 
         project_name = projects[0].name if projects else "多项目"
 
-        analysis = await llm_service.analyze_tasks(all_tasks, project_name)
+        # 传递分析配置
+        analysis = await llm_service.analyze_tasks(all_tasks, project_name, config)
 
         if not analysis.get("need_remind"):
             return

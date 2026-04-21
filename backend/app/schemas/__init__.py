@@ -284,6 +284,8 @@ class UserNotificationSettingsBase(BaseModel):
     llm_api_key: Optional[str] = None
     llm_model: Optional[str] = None  # 模型名称
     llm_group_id: Optional[str] = None  # Minmax Group ID
+    # 分析维度配置
+    analysis_config: Optional[dict] = None  # {"overdue": True, "progress_stalled": True, ...}
     rules: Optional[list[ReminderRule]] = None
     enabled: bool = True
     daily_limit: int = 5

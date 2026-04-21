@@ -250,3 +250,123 @@ async def notification_callback(
 async def get_rules_template():
     """获取规则模板"""
     return MessageResponse(data=DEFAULT_RULES)
+
+
+@router.post("/trigger", response_model=MessageResponse)
+async def trigger_reminder(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """手动触发立即提醒"""
+    from app.services.reminder_scheduler import reminder_scheduler
+
+    # 获取用户设置
+    result = await db.execute(
+        select(UserNotificationSettings).where(
+            UserNotificationSettings.user_id == current_user.id
+        )
+    )
+    settings = result.scalar_one_or_none()
+
+    if not settings or not settings.dingtalk_webhook:
+        return MessageResponse(code=400, message="未配置钉钉Webhook")
+
+    # 立即执行提醒检查
+    await reminder_scheduler.check_user_notifications(settings, db)
+
+    return MessageResponse(message="提醒已发送")
+
+
+@router.get("/stats", response_model=MessageResponse)
+async def get_notification_stats(
+    days: int = 7,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取通知统计报表"""
+    from datetime import timedelta
+
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # 获取该时间段内的通知
+    result = await db.execute(
+        select(NotificationLog).where(
+            NotificationLog.user_id == current_user.id,
+            NotificationLog.sent_at >= start_date
+        )
+    )
+    logs = result.scalars().all()
+
+    # 统计
+    total = len(logs)
+    read_count = sum(1 for log in logs if log.is_read)
+    read_rate = read_count / total * 100 if total > 0 else 0
+
+    # 按日期统计
+    daily_stats = {}
+    for log in logs:
+        date_key = log.sent_at.strftime("%Y-%m-%d") if log.sent_at else "unknown"
+        daily_stats[date_key] = daily_stats.get(date_key, 0) + 1
+
+    return MessageResponse(data={
+        "total": total,
+        "read_count": read_count,
+        "read_rate": round(read_rate, 1),
+        "daily_stats": daily_stats,
+        "period_days": days
+    })
+
+
+@router.post("/intent/parse", response_model=MessageResponse)
+async def parse_user_intent(
+    text: str,
+    current_user: User = Depends(get_current_user)
+):
+    """解析用户自然语言输入的意图"""
+    from app.services.llm_service import LLMService
+
+    llm = LLMService()
+    result = await llm.parse_user_intent(text)
+
+    return MessageResponse(data=result)
+
+
+@router.post("/tasks/auto-classify", response_model=MessageResponse)
+async def auto_classify_tasks(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """自动分类项目任务"""
+    from app.services.llm_service import LLMService
+    from app.models import Task
+
+    # 获取项目任务
+    result = await db.execute(
+        select(Task).where(Task.project_id == project_id)
+    )
+    tasks = result.scalars().all()
+
+    if not tasks:
+        return MessageResponse(code=400, message="暂无任务")
+
+    task_list = [
+        {
+            "id": t.id,
+            "name": t.name,
+            "description": t.description,
+            "status": t.status,
+            "progress": t.progress,
+            "due_date": t.due_date.isoformat() if t.due_date else None
+        }
+        for t in tasks
+    ]
+
+    llm = LLMService()
+    result = await llm.auto_classify_tasks(task_list)
+
+    return MessageResponse(data=result)
+
+
+# 依赖导入
+from datetime import datetime, timedelta, timezone
