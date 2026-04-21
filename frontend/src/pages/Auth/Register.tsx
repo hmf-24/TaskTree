@@ -30,13 +30,25 @@ export default function Register() {
       <Card className="w-96">
         <h1 className="text-2xl font-bold text-center mb-6">TaskTree 注册</h1>
         <Form onFinish={onFinish} size="large">
-          <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '请输入有效的邮箱' }]}>
+          <Form.Item
+            name="email"
+            rules={[
+              { required: true, message: '请输入邮箱' },
+              { type: 'email', message: '请输入有效的邮箱' },
+            ]}
+          >
             <Input prefix={<MailOutlined />} placeholder="邮箱" />
           </Form.Item>
           <Form.Item name="nickname" rules={[{ required: true, message: '请输入昵称' }]}>
             <Input prefix={<UserOutlined />} placeholder="昵称" />
           </Form.Item>
-          <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }, { min: 6, message: '密码至少6位' }]}>
+          <Form.Item
+            name="password"
+            rules={[
+              { required: true, message: '请输入密码' },
+              { min: 6, message: '密码至少6位' },
+            ]}
+          >
             <Input.Password prefix={<LockOutlined />} placeholder="密码" />
           </Form.Item>
           <Form.Item>

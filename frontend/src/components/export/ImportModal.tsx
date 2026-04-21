@@ -106,7 +106,9 @@ export default function ImportModal({ projectId, open, onClose, onSuccess }: Imp
         <div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 6 }}>
           <Text strong>已选择文件：</Text>
           <Text>{file.name}</Text>
-          <Text type="secondary" style={{ marginLeft: 8 }}>({(file.size / 1024).toFixed(1)} KB)</Text>
+          <Text type="secondary" style={{ marginLeft: 8 }}>
+            ({(file.size / 1024).toFixed(1)} KB)
+          </Text>
         </div>
       )}
 
@@ -115,8 +117,12 @@ export default function ImportModal({ projectId, open, onClose, onSuccess }: Imp
           <Text strong>预览：</Text>
           <div style={{ marginTop: 8, fontSize: 13, color: '#666' }}>
             {preview.project_name && <div>项目名称: {preview.project_name}</div>}
-            {preview.tasks && <div>任务数量: {Array.isArray(preview.tasks) ? preview.tasks.length : '未知'}</div>}
-            {preview.tags && <div>标签数量: {Array.isArray(preview.tags) ? preview.tags.length : '未知'}</div>}
+            {preview.tasks && (
+              <div>任务数量: {Array.isArray(preview.tasks) ? preview.tasks.length : '未知'}</div>
+            )}
+            {preview.tags && (
+              <div>标签数量: {Array.isArray(preview.tags) ? preview.tags.length : '未知'}</div>
+            )}
           </div>
         </div>
       )}

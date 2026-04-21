@@ -16,7 +16,9 @@ export default function NotificationPanel() {
       if (res.code === 200) {
         const items = res.data?.items || res.data || [];
         setNotifications(Array.isArray(items) ? items : []);
-        setUnreadCount(Array.isArray(items) ? items.filter((n: Notification) => !n.is_read).length : 0);
+        setUnreadCount(
+          Array.isArray(items) ? items.filter((n: Notification) => !n.is_read).length : 0
+        );
       }
     } catch {
       // 静默处理，通知不是核心功能
@@ -60,7 +62,14 @@ export default function NotificationPanel() {
 
   const content = (
     <div style={{ width: 360 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          padding: '8px 0',
+          borderBottom: '1px solid #f0f0f0',
+        }}
+      >
         <span style={{ fontWeight: 600 }}>通知</span>
         {unreadCount > 0 && (
           <Button type="link" size="small" onClick={handleMarkAllRead} icon={<CheckOutlined />}>
@@ -69,7 +78,11 @@ export default function NotificationPanel() {
         )}
       </div>
       {notifications.length === 0 ? (
-        <Empty description="暂无通知" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
+        <Empty
+          description="暂无通知"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          style={{ padding: 24 }}
+        />
       ) : (
         <List
           loading={loading}

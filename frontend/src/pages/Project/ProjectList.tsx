@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Button, Space, Modal, Form, Input, DatePicker, message, Progress, Dropdown } from 'antd';
-import { PlusOutlined, MoreOutlined, EditOutlined, DeleteOutlined, InboxOutlined } from '@ant-design/icons';
+import {
+  Card,
+  Button,
+  Space,
+  Modal,
+  Form,
+  Input,
+  DatePicker,
+  message,
+  Progress,
+  Dropdown,
+} from 'antd';
+import {
+  PlusOutlined,
+  MoreOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  InboxOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { projectsAPI } from '../../api';
 import { PROJECT_STATUS } from '../../constants';
@@ -152,9 +169,7 @@ export default function ProjectList() {
       </div>
 
       {projects.length === 0 && !loading && (
-        <div className="text-center text-gray-400 py-12">
-          暂无项目，点击右上角创建第一个项目
-        </div>
+        <div className="text-center text-gray-400 py-12">暂无项目，点击右上角创建第一个项目</div>
       )}
 
       <Modal
@@ -164,7 +179,11 @@ export default function ProjectList() {
         onOk={() => form.submit()}
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
+          <Form.Item
+            name="name"
+            label="项目名称"
+            rules={[{ required: true, message: '请输入项目名称' }]}
+          >
             <Input placeholder="请输入项目名称" />
           </Form.Item>
           <Form.Item name="description" label="项目描述">

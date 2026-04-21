@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Avatar, Upload, Divider, message, Tabs, Switch, Modal } from 'antd';
-import { UserOutlined, LockOutlined, UploadOutlined, SaveOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import {
+  Card,
+  Form,
+  Input,
+  Button,
+  Avatar,
+  Upload,
+  Divider,
+  message,
+  Tabs,
+  Switch,
+  Modal,
+} from 'antd';
+import {
+  UserOutlined,
+  LockOutlined,
+  UploadOutlined,
+  SaveOutlined,
+  ExclamationCircleOutlined,
+} from '@ant-design/icons';
 import { authAPI } from '../../api';
 import { useAuthStore } from '../../stores/auth';
 
@@ -29,7 +47,12 @@ export default function Settings() {
         message.success('个人资料已更新');
         if (token) {
           setAuth(
-            { id: user!.id, email: user!.email, nickname: values.nickname, avatar: values.avatar || user?.avatar },
+            {
+              id: user!.id,
+              email: user!.email,
+              nickname: values.nickname,
+              avatar: values.avatar || user?.avatar,
+            },
             token
           );
         }
@@ -191,7 +214,16 @@ export default function Settings() {
             </div>
             <div style={{ color: '#666', marginBottom: 16 }}>任务树 - 让项目管理更直观</div>
             <Divider />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 300, margin: '0 auto', textAlign: 'left' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+                maxWidth: 300,
+                margin: '0 auto',
+                textAlign: 'left',
+              }}
+            >
               <span style={{ color: '#999' }}>版本</span>
               <span>1.0.0</span>
               <span style={{ color: '#999' }}>技术栈</span>

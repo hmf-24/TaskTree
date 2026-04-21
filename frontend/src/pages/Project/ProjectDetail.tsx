@@ -1,25 +1,63 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Card, Button, Input, Modal, Form, Select, DatePicker, Progress, Tag, Space,
-  Dropdown, message, Empty, Segmented, Tooltip, Table
+  Card,
+  Button,
+  Input,
+  Modal,
+  Form,
+  Select,
+  DatePicker,
+  Progress,
+  Tag,
+  Space,
+  Dropdown,
+  message,
+  Empty,
+  Segmented,
+  Tooltip,
+  Table,
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, ArrowLeftOutlined,
-  MoreOutlined, ExportOutlined, ImportOutlined, HolderOutlined, CheckCircleOutlined,
-  PlayCircleOutlined, ClockCircleOutlined, StopOutlined,
-  AppstoreOutlined, UnorderedListOutlined, ApartmentOutlined, TagOutlined, BarChartOutlined
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ArrowLeftOutlined,
+  MoreOutlined,
+  ExportOutlined,
+  ImportOutlined,
+  HolderOutlined,
+  CheckCircleOutlined,
+  PlayCircleOutlined,
+  ClockCircleOutlined,
+  StopOutlined,
+  AppstoreOutlined,
+  UnorderedListOutlined,
+  ApartmentOutlined,
+  TagOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor,
-  useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
 } from '@dnd-kit/core';
-import {
-  SortableContext, useSortable, verticalListSortingStrategy
-} from '@dnd-kit/sortable';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { projectsAPI, tasksAPI } from '../../api';
-import { STATUS_COLORS, PRIORITY_COLORS, STATUS_LABELS, PRIORITY_LABELS, TASK_STATUS } from '../../constants';
+import {
+  STATUS_COLORS,
+  PRIORITY_COLORS,
+  STATUS_LABELS,
+  PRIORITY_LABELS,
+  TASK_STATUS,
+} from '../../constants';
 import TaskDetailDrawer from '../../components/task/TaskDetailDrawer';
 import TagManager from '../../components/tag/TagManager';
 import ExportModal from '../../components/export/ExportModal';
@@ -105,7 +143,13 @@ function collectDependencies(tasks: Task[]): Dependency[] {
 
 // 可拖拽的任务项组件
 function SortableTaskItem({
-  task, onEdit, onDelete, onAddChild, onStatusChange, onOpenDetail, depth = 0
+  task,
+  onEdit,
+  onDelete,
+  onAddChild,
+  onStatusChange,
+  onOpenDetail,
+  depth = 0,
 }: {
   task: Task;
   onEdit: (t: Task) => void;
@@ -115,9 +159,9 @@ function SortableTaskItem({
   onOpenDetail: (t: Task) => void;
   depth?: number;
 }) {
-  const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging
-  } = useSortable({ id: String(task.id) });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: String(task.id),
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -132,7 +176,13 @@ function SortableTaskItem({
     { key: 'edit', label: '编辑', icon: <EditOutlined />, onClick: () => onEdit(task) },
     { key: 'add', label: '添加子任务', icon: <PlusOutlined />, onClick: () => onAddChild(task) },
     { type: 'divider' as const },
-    { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => onDelete(task) },
+    {
+      key: 'delete',
+      label: '删除',
+      icon: <DeleteOutlined />,
+      danger: true,
+      onClick: () => onDelete(task),
+    },
   ];
 
   return (
@@ -167,8 +217,12 @@ function SortableTaskItem({
             </span>
           </div>
           <Space size={4}>
-            <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>{PRIORITY_LABELS[task.priority]}</Tag>
-            <Tag color={STATUS_COLORS[task.status]} style={{ margin: 0 }}>{STATUS_LABELS[task.status]}</Tag>
+            <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>
+              {PRIORITY_LABELS[task.priority]}
+            </Tag>
+            <Tag color={STATUS_COLORS[task.status]} style={{ margin: 0 }}>
+              {STATUS_LABELS[task.status]}
+            </Tag>
             <Progress type="circle" percent={task.progress} size={28} />
             <Dropdown menu={{ items: menuItems }} trigger={['click']}>
               <Button type="text" size="small" icon={<MoreOutlined />} />
@@ -177,7 +231,10 @@ function SortableTaskItem({
         </div>
         {task.children && task.children.length > 0 && (
           <div className="mt-2 border-l-2 border-gray-200 pl-2">
-            <SortableContext items={task.children.map(c => String(c.id))} strategy={verticalListSortingStrategy}>
+            <SortableContext
+              items={task.children.map((c) => String(c.id))}
+              strategy={verticalListSortingStrategy}
+            >
               {task.children.map((child) => (
                 <SortableTaskItem
                   key={child.id}
@@ -394,7 +451,9 @@ export default function ProjectDetail() {
   return (
     <div className="p-6">
       <div className="flex items-center gap-4 mb-6">
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>返回</Button>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
+          返回
+        </Button>
         <h1 className="text-2xl font-bold m-0">{project?.name || '项目详情'}</h1>
         <Tag color="blue">{project?.task_count || 0} 个任务</Tag>
         <Tag color="green">{project?.completed_count || 0} 已完成</Tag>
@@ -405,7 +464,9 @@ export default function ProjectDetail() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
             添加任务
           </Button>
-          <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>标签管理</Button>
+          <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
+            标签管理
+          </Button>
           <Segmented
             options={viewOptions}
             value={viewType}
@@ -413,14 +474,18 @@ export default function ProjectDetail() {
           />
         </Space>
         <Space>
-          <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>导出</Button>
-          <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>导入</Button>
+          <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
+            导出
+          </Button>
+          <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+            导入
+          </Button>
         </Space>
       </div>
 
       {/* 树形视图 - 带拖拽 */}
-      {viewType === 'tree' && (
-        tasks.length === 0 ? (
+      {viewType === 'tree' &&
+        (tasks.length === 0 ? (
           <Empty description="暂无任务，点击上方按钮添加第一个任务" />
         ) : (
           <DndContext
@@ -444,7 +509,11 @@ export default function ProjectDetail() {
             </SortableContext>
             <DragOverlay>
               {activeTask ? (
-                <Card size="small" className="bg-blue-50 shadow-lg" style={{ opacity: 0.9, width: 'auto' }}>
+                <Card
+                  size="small"
+                  className="bg-blue-50 shadow-lg"
+                  style={{ opacity: 0.9, width: 'auto' }}
+                >
                   <div className="flex items-center gap-2">
                     <HolderOutlined />
                     <span className="font-medium">{activeTask.name}</span>
@@ -453,21 +522,30 @@ export default function ProjectDetail() {
               ) : null}
             </DragOverlay>
           </DndContext>
-        )
-      )}
+        ))}
 
       {/* 看板视图占位 */}
       {viewType === 'kanban' && (
         <div id="kanban-view-container">
           {/* 将在任务4中实现 */}
-          <KanbanView tasks={tasks} onStatusChange={handleStatusChange} onOpenDetail={handleOpenDetail} />
+          <KanbanView
+            tasks={tasks}
+            onStatusChange={handleStatusChange}
+            onOpenDetail={handleOpenDetail}
+          />
         </div>
       )}
 
       {/* 列表视图占位 */}
       {viewType === 'list' && (
         <div id="list-view-container">
-          <ListView tasks={tasks} onEdit={handleEditTask} onDelete={handleDeleteTask} onStatusChange={handleStatusChange} onOpenDetail={handleOpenDetail} />
+          <ListView
+            tasks={tasks}
+            onEdit={handleEditTask}
+            onDelete={handleDeleteTask}
+            onStatusChange={handleStatusChange}
+            onOpenDetail={handleOpenDetail}
+          />
         </div>
       )}
 
@@ -490,14 +568,18 @@ export default function ProjectDetail() {
 
       {/* 添加/编辑任务弹窗 */}
       <Modal
-        title={editingTask ? '编辑任务' : (parentTaskId ? '添加子任务' : '添加任务')}
+        title={editingTask ? '编辑任务' : parentTaskId ? '添加子任务' : '添加任务'}
         open={taskModalVisible}
         onCancel={() => setTaskModalVisible(false)}
         onOk={() => form.submit()}
         width={600}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmitTask}>
-          <Form.Item name="name" label="任务名称" rules={[{ required: true, message: '请输入任务名称' }]}>
+          <Form.Item
+            name="name"
+            label="任务名称"
+            rules={[{ required: true, message: '请输入任务名称' }]}
+          >
             <Input placeholder="请输入任务名称" />
           </Form.Item>
           <Form.Item name="description" label="描述">
@@ -507,7 +589,9 @@ export default function ProjectDetail() {
             <Form.Item name="priority" label="优先级" initialValue="medium">
               <Select style={{ width: 120 }}>
                 {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                  <Select.Option key={value} value={value}>{label as string}</Select.Option>
+                  <Select.Option key={value} value={value}>
+                    {label as string}
+                  </Select.Option>
                 ))}
               </Select>
             </Form.Item>
@@ -515,7 +599,9 @@ export default function ProjectDetail() {
               <Form.Item name="status" label="状态" initialValue="pending">
                 <Select style={{ width: 120 }}>
                   {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <Select.Option key={value} value={value}>{label as string}</Select.Option>
+                    <Select.Option key={value} value={value}>
+                      {label as string}
+                    </Select.Option>
                   ))}
                 </Select>
               </Form.Item>
@@ -569,7 +655,9 @@ export default function ProjectDetail() {
 
 // ========== 看板视图组件 ==========
 function KanbanView({
-  tasks, onStatusChange, onOpenDetail
+  tasks,
+  onStatusChange,
+  onOpenDetail,
 }: {
   tasks: Task[];
   onStatusChange: (task: Task, newStatus: string) => void;
@@ -593,18 +681,31 @@ function KanbanView({
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 16 }}>
-      {columns.map(col => {
-        const colTasks = flatTasks.filter(t => t.status === col.key);
+    <div
+      style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 16 }}
+    >
+      {columns.map((col) => {
+        const colTasks = flatTasks.filter((t) => t.status === col.key);
         return (
-          <div key={col.key} style={{ background: '#fafafa', borderRadius: 8, padding: 12, minHeight: 300 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontWeight: 600 }}>
+          <div
+            key={col.key}
+            style={{ background: '#fafafa', borderRadius: 8, padding: 12, minHeight: 300 }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 12,
+                fontWeight: 600,
+              }}
+            >
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
               <span>{col.title}</span>
               <Tag style={{ margin: 0 }}>{colTasks.length}</Tag>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {colTasks.map(task => (
+              {colTasks.map((task) => (
                 <Card
                   key={task.id}
                   size="small"
@@ -615,7 +716,13 @@ function KanbanView({
                   <div style={{ marginBottom: 8 }}>
                     <span className="font-medium">{task.name}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
                     <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>
                       {PRIORITY_LABELS[task.priority]}
                     </Tag>
@@ -651,7 +758,11 @@ function KanbanView({
 
 // ========== 列表视图组件 ==========
 function ListView({
-  tasks, onEdit, onDelete, onStatusChange, onOpenDetail
+  tasks,
+  onEdit,
+  onDelete,
+  onStatusChange,
+  onOpenDetail,
 }: {
   tasks: Task[];
   onEdit: (t: Task) => void;
@@ -727,21 +838,18 @@ function ListView({
       width: 120,
       render: (_: any, record: Task) => (
         <Space size={4}>
-          <Button type="link" size="small" onClick={() => onEdit(record)}>编辑</Button>
-          <Button type="link" size="small" danger onClick={() => onDelete(record)}>删除</Button>
+          <Button type="link" size="small" onClick={() => onEdit(record)}>
+            编辑
+          </Button>
+          <Button type="link" size="small" danger onClick={() => onDelete(record)}>
+            删除
+          </Button>
         </Space>
       ),
     },
   ];
 
-
   return (
-    <Table
-      dataSource={flatTasks}
-      columns={columns}
-      rowKey="id"
-      pagination={false}
-      size="middle"
-    />
+    <Table dataSource={flatTasks} columns={columns} rowKey="id" pagination={false} size="middle" />
   );
 }

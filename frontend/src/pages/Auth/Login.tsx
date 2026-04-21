@@ -28,7 +28,10 @@ export default function Login() {
         const userRes = await authAPI.getCurrentUser();
         if (userRes.code === 200) {
           const user = userRes.data;
-          setAuth({ id: user.id, email: user.email, nickname: user.nickname, avatar: user.avatar }, token);
+          setAuth(
+            { id: user.id, email: user.email, nickname: user.nickname, avatar: user.avatar },
+            token
+          );
         }
       } catch {
         // token 已保存，用户信息获取失败不影响登录

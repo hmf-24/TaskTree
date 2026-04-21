@@ -31,7 +31,7 @@ export default function GanttView({ tasks, onTaskClick }: GanttViewProps) {
     const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     return flatTasks
-      .filter(t => t.start_date || t.due_date) // 只显示有日期的任务
+      .filter((t) => t.start_date || t.due_date) // 只显示有日期的任务
       .map((task) => {
         const start = task.start_date ? new Date(task.start_date) : now;
         const end = task.due_date ? new Date(task.due_date) : oneWeekLater;
@@ -62,10 +62,7 @@ export default function GanttView({ tasks, onTaskClick }: GanttViewProps) {
 
   if (ganttTasks.length === 0) {
     return (
-      <Empty
-        description="暂无可展示的任务（需要设置开始/截止日期）"
-        style={{ padding: 48 }}
-      />
+      <Empty description="暂无可展示的任务（需要设置开始/截止日期）" style={{ padding: 48 }} />
     );
   }
 
@@ -95,7 +92,7 @@ export default function GanttView({ tasks, onTaskClick }: GanttViewProps) {
           listCellWidth=""
           columnWidth={viewMode === ViewMode.Month ? 200 : viewMode === ViewMode.Week ? 100 : 50}
           onClick={(task) => {
-            const originalTask = flatTasks.find(t => String(t.id) === task.id);
+            const originalTask = flatTasks.find((t) => String(t.id) === task.id);
             if (originalTask && onTaskClick) onTaskClick(originalTask);
           }}
         />

@@ -59,7 +59,10 @@ export default function Layout() {
 
   return (
     <AntLayout className="min-h-screen">
-      <Header className="flex justify-between items-center px-4 bg-white shadow-sm" style={{ zIndex: 1 }}>
+      <Header
+        className="flex justify-between items-center px-4 bg-white shadow-sm"
+        style={{ zIndex: 1 }}
+      >
         <div className="text-xl font-bold text-blue-600">TaskTree</div>
         <div className="flex items-center gap-4">
           <NotificationPanel />

@@ -1,7 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import ReactFlow, {
-  Background, Controls, MiniMap,
-  Node, Edge, Position, MarkerType
+  Background,
+  Controls,
+  MiniMap,
+  Node,
+  Edge,
+  Position,
+  MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { Task, Dependency } from '../../types';
@@ -27,18 +32,24 @@ export default function DependencyGraph({ tasks, dependencies }: DependencyGraph
         label: (
           <div style={{ padding: 8, textAlign: 'center' }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>{task.name}</div>
-            <div style={{
-              fontSize: 11,
-              color: statusColors[task.status],
-              marginTop: 4,
-              display: 'inline-block',
-              padding: '1px 6px',
-              borderRadius: 4,
-              background: `${statusColors[task.status]}20`,
-            }}>
-              {task.status === 'pending' ? '待办' :
-               task.status === 'in_progress' ? '进行中' :
-               task.status === 'completed' ? '已完成' : '已取消'}
+            <div
+              style={{
+                fontSize: 11,
+                color: statusColors[task.status],
+                marginTop: 4,
+                display: 'inline-block',
+                padding: '1px 6px',
+                borderRadius: 4,
+                background: `${statusColors[task.status]}20`,
+              }}
+            >
+              {task.status === 'pending'
+                ? '待办'
+                : task.status === 'in_progress'
+                  ? '进行中'
+                  : task.status === 'completed'
+                    ? '已完成'
+                    : '已取消'}
             </div>
           </div>
         ),
@@ -73,12 +84,7 @@ export default function DependencyGraph({ tasks, dependencies }: DependencyGraph
 
   return (
     <div style={{ width: '100%', height: 500, border: '1px solid #f0f0f0', borderRadius: 8 }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        fitView
-        attributionPosition="bottom-left"
-      >
+      <ReactFlow nodes={nodes} edges={edges} fitView attributionPosition="bottom-left">
         <Background />
         <Controls />
         <MiniMap style={{ width: 120, height: 80 }} />

@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Modal, Button, Space, message, Radio } from 'antd';
-import { DownloadOutlined, FileTextOutlined, FileExcelOutlined, FileMarkdownOutlined } from '@ant-design/icons';
+import {
+  DownloadOutlined,
+  FileTextOutlined,
+  FileExcelOutlined,
+  FileMarkdownOutlined,
+} from '@ant-design/icons';
 import { exportAPI } from '../../api';
 
 interface ExportModalProps {
@@ -17,9 +22,30 @@ export default function ExportModal({ projectId, projectName, open, onClose }: E
   const [loading, setLoading] = useState(false);
 
   const formatOptions = [
-    { label: <span><FileTextOutlined /> JSON</span>, value: 'json' },
-    { label: <span><FileMarkdownOutlined /> Markdown</span>, value: 'markdown' },
-    { label: <span><FileExcelOutlined /> Excel</span>, value: 'excel' },
+    {
+      label: (
+        <span>
+          <FileTextOutlined /> JSON
+        </span>
+      ),
+      value: 'json',
+    },
+    {
+      label: (
+        <span>
+          <FileMarkdownOutlined /> Markdown
+        </span>
+      ),
+      value: 'markdown',
+    },
+    {
+      label: (
+        <span>
+          <FileExcelOutlined /> Excel
+        </span>
+      ),
+      value: 'excel',
+    },
   ];
 
   const handleExport = async () => {
@@ -75,7 +101,12 @@ export default function ExportModal({ projectId, projectName, open, onClose }: E
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
-          <Button type="primary" icon={<DownloadOutlined />} onClick={handleExport} loading={loading}>
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={handleExport}
+            loading={loading}
+          >
             导出
           </Button>
         </Space>
@@ -93,8 +124,18 @@ export default function ExportModal({ projectId, projectName, open, onClose }: E
           size="large"
           style={{ width: '100%' }}
         />
-        <div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 6, fontSize: 13, color: '#888' }}>
-          {format === 'json' && '导出完整的项目数据，包括任务树、标签等，可用于备份或导入到其他项目。'}
+        <div
+          style={{
+            marginTop: 16,
+            padding: 12,
+            background: '#fafafa',
+            borderRadius: 6,
+            fontSize: 13,
+            color: '#888',
+          }}
+        >
+          {format === 'json' &&
+            '导出完整的项目数据，包括任务树、标签等，可用于备份或导入到其他项目。'}
           {format === 'markdown' && '导出为 Markdown 格式的任务清单，方便阅读和分享。'}
           {format === 'excel' && '导出为 Excel 表格，包含所有任务信息，适合数据分析和汇报。'}
         </div>

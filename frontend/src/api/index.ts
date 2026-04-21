@@ -34,10 +34,12 @@ export default api;
 // Auth API
 export const authAPI = {
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
-  register: (data: { email: string; password: string; nickname: string }) => api.post('/auth/register', data),
+  register: (data: { email: string; password: string; nickname: string }) =>
+    api.post('/auth/register', data),
   getCurrentUser: () => api.get('/auth/me'),
   updateUser: (data: { nickname?: string; avatar?: string }) => api.put('/auth/me', data),
-  changePassword: (data: { old_password: string; new_password: string }) => api.put('/auth/password', data),
+  changePassword: (data: { old_password: string; new_password: string }) =>
+    api.put('/auth/password', data),
 };
 
 // Projects API
@@ -47,12 +49,15 @@ export const projectsAPI = {
   get: (id: number) => api.get(`/projects/${id}`),
   create: (data: { name: string; description?: string; start_date?: string; end_date?: string }) =>
     api.post('/projects', data),
-  update: (id: number, data: Partial<{ name: string; description: string; start_date: string; end_date: string }>) =>
-    api.put(`/projects/${id}`, data),
+  update: (
+    id: number,
+    data: Partial<{ name: string; description: string; start_date: string; end_date: string }>
+  ) => api.put(`/projects/${id}`, data),
   delete: (id: number) => api.delete(`/projects/${id}`),
   archive: (id: number, archived: boolean) => api.post(`/projects/${id}/archive`, { archived }),
   getMembers: (id: number) => api.get(`/projects/${id}/members`),
-  addMember: (id: number, data: { email: string; role: string }) => api.post(`/projects/${id}/members`, data),
+  addMember: (id: number, data: { email: string; role: string }) =>
+    api.post(`/projects/${id}/members`, data),
   removeMember: (id: number, userId: number) => api.delete(`/projects/${id}/members/${userId}`),
 };
 
@@ -62,49 +67,72 @@ export const tasksAPI = {
   list: (projectId: number, params?: { parent_id?: number; status?: string; priority?: string }) =>
     api.get(`/projects/${projectId}/tasks`, { params }),
   get: (id: number) => api.get(`/tasks/${id}`),
-  create: (projectId: number, data: {
-    name: string;
-    description?: string;
-    parent_id?: number;
-    assignee_id?: number;
-    priority?: string;
-    start_date?: string;
-    due_date?: string;
-    estimated_time?: number;
-  }) => api.post(`/projects/${projectId}/tasks`, data),
-  update: (id: number, data: Partial<{
-    name: string; description: string; assignee_id: number; status: string;
-    priority: string; progress: number; start_date: string; due_date: string; estimated_time: number;
-  }>) => api.put(`/tasks/${id}`, data),
-  delete: (id: number, deleteChildren?: boolean) => api.delete(`/tasks/${id}`, { params: { delete_children: deleteChildren } }),
-  move: (id: number, data: { parent_id?: number; sort_order?: number }) => api.put(`/tasks/${id}/move`, data),
+  create: (
+    projectId: number,
+    data: {
+      name: string;
+      description?: string;
+      parent_id?: number;
+      assignee_id?: number;
+      priority?: string;
+      start_date?: string;
+      due_date?: string;
+      estimated_time?: number;
+    }
+  ) => api.post(`/projects/${projectId}/tasks`, data),
+  update: (
+    id: number,
+    data: Partial<{
+      name: string;
+      description: string;
+      assignee_id: number;
+      status: string;
+      priority: string;
+      progress: number;
+      start_date: string;
+      due_date: string;
+      estimated_time: number;
+    }>
+  ) => api.put(`/tasks/${id}`, data),
+  delete: (id: number, deleteChildren?: boolean) =>
+    api.delete(`/tasks/${id}`, { params: { delete_children: deleteChildren } }),
+  move: (id: number, data: { parent_id?: number; sort_order?: number }) =>
+    api.put(`/tasks/${id}/move`, data),
 };
 
 // Tags API
 export const tagsAPI = {
   list: (projectId: number) => api.get(`/projects/${projectId}/tags`),
-  create: (projectId: number, data: { name: string; color?: string }) => api.post(`/projects/${projectId}/tags`, data),
+  create: (projectId: number, data: { name: string; color?: string }) =>
+    api.post(`/projects/${projectId}/tags`, data),
   update: (id: number, data: { name?: string; color?: string }) => api.put(`/tags/${id}`, data),
   delete: (id: number) => api.delete(`/tags/${id}`),
-  addToTask: (taskId: number, tagIds: number[]) => api.post(`/tasks/${taskId}/tags`, { tag_ids: tagIds }),
+  addToTask: (taskId: number, tagIds: number[]) =>
+    api.post(`/tasks/${taskId}/tags`, { tag_ids: tagIds }),
 };
 
 // Comments API
 export const commentsAPI = {
   list: (taskId: number) => api.get(`/tasks/${taskId}/comments`),
-  create: (taskId: number, data: { content: string; mentions?: number[] }) => api.post(`/tasks/${taskId}/comments`, data),
+  create: (taskId: number, data: { content: string; mentions?: number[] }) =>
+    api.post(`/tasks/${taskId}/comments`, data),
   delete: (id: number) => api.delete(`/comments/${id}`),
 };
 
 // Export API
 export const exportAPI = {
-  json: (projectId: number) => api.get(`/projects/${projectId}/export/json`, { responseType: 'blob' }),
-  markdown: (projectId: number) => api.get(`/projects/${projectId}/export/markdown`, { responseType: 'blob' }),
-  excel: (projectId: number) => api.get(`/projects/${projectId}/export/excel`, { responseType: 'blob' }),
+  json: (projectId: number) =>
+    api.get(`/projects/${projectId}/export/json`, { responseType: 'blob' }),
+  markdown: (projectId: number) =>
+    api.get(`/projects/${projectId}/export/markdown`, { responseType: 'blob' }),
+  excel: (projectId: number) =>
+    api.get(`/projects/${projectId}/export/excel`, { responseType: 'blob' }),
   importJson: (projectId: number, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/projects/${projectId}/import/json`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+    return api.post(`/projects/${projectId}/import/json`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   },
 };
 
@@ -118,5 +146,6 @@ export const notificationsAPI = {
 
 // Search API
 export const searchAPI = {
-  search: (params: { q: string; type?: string; project_id?: number }) => api.get('/search', { params }),
+  search: (params: { q: string; type?: string; project_id?: number }) =>
+    api.get('/search', { params }),
 };

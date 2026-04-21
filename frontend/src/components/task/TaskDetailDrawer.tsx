@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Drawer, Form, Input, Select, Slider, DatePicker, Button, Tag, Space, Divider, Descriptions, message } from 'antd';
+import {
+  Drawer,
+  Form,
+  Input,
+  Select,
+  Slider,
+  DatePicker,
+  Button,
+  Tag,
+  Space,
+  Divider,
+  Descriptions,
+  message,
+} from 'antd';
 import { SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { tasksAPI } from '../../api';
@@ -14,7 +27,12 @@ interface TaskDetailDrawerProps {
   onUpdate: () => void;
 }
 
-export default function TaskDetailDrawer({ taskId, open, onClose, onUpdate }: TaskDetailDrawerProps) {
+export default function TaskDetailDrawer({
+  taskId,
+  open,
+  onClose,
+  onUpdate,
+}: TaskDetailDrawerProps) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -101,7 +119,9 @@ export default function TaskDetailDrawer({ taskId, open, onClose, onUpdate }: Ta
           {taskDetail && (
             <>
               <Tag color={STATUS_COLORS[taskDetail.status]}>{STATUS_LABELS[taskDetail.status]}</Tag>
-              <Tag color={PRIORITY_COLORS[taskDetail.priority]}>{PRIORITY_LABELS[taskDetail.priority]}</Tag>
+              <Tag color={PRIORITY_COLORS[taskDetail.priority]}>
+                {PRIORITY_LABELS[taskDetail.priority]}
+              </Tag>
             </>
           )}
         </div>
@@ -113,13 +133,21 @@ export default function TaskDetailDrawer({ taskId, open, onClose, onUpdate }: Ta
       loading={loading}
       extra={
         <Space>
-          <Button onClick={onClose} icon={<CloseOutlined />}>取消</Button>
-          <Button type="primary" onClick={handleSave} loading={saving} icon={<SaveOutlined />}>保存</Button>
+          <Button onClick={onClose} icon={<CloseOutlined />}>
+            取消
+          </Button>
+          <Button type="primary" onClick={handleSave} loading={saving} icon={<SaveOutlined />}>
+            保存
+          </Button>
         </Space>
       }
     >
       <Form form={form} layout="vertical" size="middle">
-        <Form.Item name="name" label="任务名称" rules={[{ required: true, message: '请输入任务名称' }]}>
+        <Form.Item
+          name="name"
+          label="任务名称"
+          rules={[{ required: true, message: '请输入任务名称' }]}
+        >
           <Input placeholder="请输入任务名称" />
         </Form.Item>
 
@@ -133,24 +161,25 @@ export default function TaskDetailDrawer({ taskId, open, onClose, onUpdate }: Ta
           <Form.Item name="status" label="状态">
             <Select onChange={handleStatusChange}>
               {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <Select.Option key={value} value={value}>{label as string}</Select.Option>
+                <Select.Option key={value} value={value}>
+                  {label as string}
+                </Select.Option>
               ))}
             </Select>
           </Form.Item>
           <Form.Item name="priority" label="优先级">
             <Select>
               {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                <Select.Option key={value} value={value}>{label as string}</Select.Option>
+                <Select.Option key={value} value={value}>
+                  {label as string}
+                </Select.Option>
               ))}
             </Select>
           </Form.Item>
         </div>
 
         <Form.Item name="progress" label="进度">
-          <Slider
-            marks={{ 0: '0%', 25: '25%', 50: '50%', 75: '75%', 100: '100%' }}
-            step={5}
-          />
+          <Slider marks={{ 0: '0%', 25: '25%', 50: '50%', 75: '75%', 100: '100%' }} step={5} />
         </Form.Item>
 
         <Divider />
@@ -178,9 +207,14 @@ export default function TaskDetailDrawer({ taskId, open, onClose, onUpdate }: Ta
             <Divider />
             <Descriptions title="子任务" column={1} size="small">
               {taskDetail.children.map((child: any) => (
-                <Descriptions.Item key={child.id} label={
-                  <Tag color={STATUS_COLORS[child.status]} style={{ margin: 0 }}>{STATUS_LABELS[child.status]}</Tag>
-                }>
+                <Descriptions.Item
+                  key={child.id}
+                  label={
+                    <Tag color={STATUS_COLORS[child.status]} style={{ margin: 0 }}>
+                      {STATUS_LABELS[child.status]}
+                    </Tag>
+                  }
+                >
                   {child.name}
                 </Descriptions.Item>
               ))}
@@ -195,7 +229,9 @@ export default function TaskDetailDrawer({ taskId, open, onClose, onUpdate }: Ta
               <span style={{ fontWeight: 500, marginBottom: 8, display: 'block' }}>标签</span>
               <Space wrap>
                 {taskDetail.tags.map((tag: any) => (
-                  <Tag key={tag.id} color={tag.color}>{tag.name}</Tag>
+                  <Tag key={tag.id} color={tag.color}>
+                    {tag.name}
+                  </Tag>
                 ))}
               </Space>
             </div>

@@ -57,7 +57,7 @@ export const PRIORITY_LABELS: Record<string, string> = {
   low: '低',
 };
 
-export type TaskStatusType = typeof TASK_STATUS[keyof typeof TASK_STATUS];
-export type PriorityType = typeof PRIORITY[keyof typeof PRIORITY];
-export type ProjectStatusType = typeof PROJECT_STATUS[keyof typeof PROJECT_STATUS];
-export type MemberRoleType = typeof MEMBER_ROLE[keyof typeof MEMBER_ROLE];
+export type TaskStatusType = (typeof TASK_STATUS)[keyof typeof TASK_STATUS];
+export type PriorityType = (typeof PRIORITY)[keyof typeof PRIORITY];
+export type ProjectStatusType = (typeof PROJECT_STATUS)[keyof typeof PROJECT_STATUS];
+export type MemberRoleType = (typeof MEMBER_ROLE)[keyof typeof MEMBER_ROLE];

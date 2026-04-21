@@ -1,5 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Input, Button, Tag, Space, ColorPicker, Popconfirm, message, Empty } from 'antd';
+import {
+  Modal,
+  Form,
+  Input,
+  Button,
+  Tag,
+  Space,
+  ColorPicker,
+  Popconfirm,
+  message,
+  Empty,
+} from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { tagsAPI } from '../../api';
 import type { Tag as TagType } from '../../types';
@@ -10,7 +21,16 @@ interface TagManagerProps {
   onClose: () => void;
 }
 
-const DEFAULT_COLORS = ['#f5222d', '#fa541c', '#faad14', '#52c41a', '#1890ff', '#722ed1', '#eb2f96', '#13c2c2'];
+const DEFAULT_COLORS = [
+  '#f5222d',
+  '#fa541c',
+  '#faad14',
+  '#52c41a',
+  '#1890ff',
+  '#722ed1',
+  '#eb2f96',
+  '#13c2c2',
+];
 
 export default function TagManager({ projectId, open, onClose }: TagManagerProps) {
   const [tags, setTags] = useState<TagType[]>([]);
@@ -66,7 +86,10 @@ export default function TagManager({ projectId, open, onClose }: TagManagerProps
 
   const handleSubmit = async (values: any) => {
     try {
-      const color = typeof values.color === 'string' ? values.color : values.color?.toHexString?.() || values.color;
+      const color =
+        typeof values.color === 'string'
+          ? values.color
+          : values.color?.toHexString?.() || values.color;
       if (editingTag) {
         const res = await tagsAPI.update(editingTag.id, { name: values.name, color });
         if (res.code === 200) {
@@ -87,13 +110,7 @@ export default function TagManager({ projectId, open, onClose }: TagManagerProps
   };
 
   return (
-    <Modal
-      title="标签管理"
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      width={480}
-    >
+    <Modal title="标签管理" open={open} onCancel={onClose} footer={null} width={480}>
       <div style={{ marginBottom: 16 }}>
         <Button type="dashed" icon={<PlusOutlined />} onClick={handleCreate} block>
           添加标签
@@ -104,7 +121,7 @@ export default function TagManager({ projectId, open, onClose }: TagManagerProps
         <Empty description="暂无标签" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {tags.map(tag => (
+          {tags.map((tag) => (
             <div
               key={tag.id}
               style={{
@@ -116,10 +133,22 @@ export default function TagManager({ projectId, open, onClose }: TagManagerProps
                 background: '#fafafa',
               }}
             >
-              <Tag color={tag.color} style={{ margin: 0, fontSize: 14 }}>{tag.name}</Tag>
+              <Tag color={tag.color} style={{ margin: 0, fontSize: 14 }}>
+                {tag.name}
+              </Tag>
               <Space size={4}>
-                <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(tag)} />
-                <Popconfirm title="确定删除？" onConfirm={() => handleDelete(tag.id)} okText="删除" cancelText="取消">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEdit(tag)}
+                />
+                <Popconfirm
+                  title="确定删除？"
+                  onConfirm={() => handleDelete(tag.id)}
+                  okText="删除"
+                  cancelText="取消"
+                >
                   <Button type="text" size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
@@ -136,14 +165,15 @@ export default function TagManager({ projectId, open, onClose }: TagManagerProps
         width={360}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="name" label="标签名称" rules={[{ required: true, message: '请输入标签名称' }]}>
+          <Form.Item
+            name="name"
+            label="标签名称"
+            rules={[{ required: true, message: '请输入标签名称' }]}
+          >
             <Input placeholder="输入标签名称" />
           </Form.Item>
           <Form.Item name="color" label="颜色">
-            <ColorPicker
-              presets={[{ label: '推荐', colors: DEFAULT_COLORS }]}
-              showText
-            />
+            <ColorPicker presets={[{ label: '推荐', colors: DEFAULT_COLORS }]} showText />
           </Form.Item>
         </Form>
       </Modal>
