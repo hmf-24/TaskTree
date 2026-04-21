@@ -701,9 +701,11 @@ DELETE /comments/{comment_id}
 
 ---
 
-## 附件接口
+## 附件接口 (v1.0 表结构已预留，API 待开发)
 
 ### 34. 上传附件
+
+> ⚠️ v1.0 待开发
 
 ```
 POST /tasks/{task_id}/attachments
@@ -713,105 +715,15 @@ POST /tasks/{task_id}/attachments
 
 ---
 
-### 35. 下载附件
-
-```
-GET /attachments/{attachment_id}
-```
-
----
-
-### 36. 删除附件
-
-```
-DELETE /attachments/{attachment_id}
-```
-
----
-
-## 通知接口
-
-### 37. 获取通知列表
-
-```
-GET /notifications
-```
-
-**查询参数**：
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| is_read | bool | 已读/未读筛选 |
-| page | int | 页码 |
-| page_size | int | 每页数量 |
-
----
-
-### 38. 标记已读
-
-```
-PUT /notifications/{notification_id}/read
-```
-
----
-
-### 39. 全部已读
-
-```
-PUT /notifications/read-all
-```
-
----
-
-## 导入导出接口
-
-### 40. 导出JSON
-
-```
-GET /projects/{project_id}/export/json
-```
-
----
-
-### 41. 导出Markdown
-
-```
-GET /projects/{project_id}/export/markdown
-```
-
----
-
-### 42. 导出Excel
-
-```
-GET /projects/{project_id}/export/excel
-```
-
----
-
-### 43. 导入JSON
-
-```
-POST /projects/{project_id}/import/json
-```
-
-**请求体**：multipart/form-data
-
----
-
-## 搜索接口
+## 搜索接口 (v1.0 待开发)
 
 ### 44. 全局搜索
+
+> ⚠️ v1.0 待开发
 
 ```
 GET /search
 ```
-
-**查询参数**：
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| q | string | 搜索关键词 |
-| type | string | 类型：project/task |
-| project_id | int | 项目筛选 |
 
 ---
 

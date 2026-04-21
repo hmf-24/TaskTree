@@ -1,11 +1,12 @@
 ---
 title: TaskTree 系统架构说明
-date: 2026-04-12
+date: 2026-04-21
 tags:
   - 技术架构
   - FastAPI
   - React
   - 项目文档
+  - v1.0
 aliases:
   - TaskTree架构
   - TaskTree系统设计
@@ -13,10 +14,11 @@ cssclasses:
   - architecture
 ---
 
-# TaskTree 系统架构说明文档
+# TaskTree 系统架构说明文档 v1.0
 
 > [!info] 概述
 > 本文档全面梳理 TaskTree 项目的整体架构、技术栈、核心模块设计以及数据流向。
+> **当前版本**：v1.0 (已完成)
 
 ---
 
