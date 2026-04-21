@@ -4,6 +4,7 @@ import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
 import ProjectList from './pages/Project/ProjectList';
 import ProjectDetail from './pages/Project/ProjectDetail';
+import Settings from './pages/Settings/Settings';
 import Layout from './components/layout/Layout';
 
 function App() {
@@ -33,6 +34,7 @@ function AppRoutes() {
       <Route element={<Layout />}>
         <Route index element={<ProjectList />} />
         <Route path="project/:id" element={<ProjectDetail />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Route>
     </Routes>

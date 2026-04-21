@@ -23,11 +23,13 @@ export default function Layout() {
         key: 'profile',
         label: '个人资料',
         icon: <UserOutlined />,
+        onClick: () => navigate('/settings'),
       },
       {
         key: 'settings',
         label: '设置',
         icon: <SettingOutlined />,
+        onClick: () => navigate('/settings'),
       },
       {
         type: 'divider',
@@ -47,6 +49,11 @@ export default function Layout() {
       key: '/',
       icon: <HomeOutlined />,
       label: '项目列表',
+    },
+    {
+      key: '/settings',
+      icon: <SettingOutlined />,
+      label: '设置',
     },
   ];
 
