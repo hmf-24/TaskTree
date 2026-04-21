@@ -110,9 +110,9 @@ class TestCurrentUser:
 
     @pytest.mark.asyncio
     async def test_get_me_unauthorized(self, client: AsyncClient):
-        """无 Token 应返回 403（HTTPBearer 缺少凭证）"""
+        """无 Token 应返回 401（HTTPBearer 缺少凭证）"""
         resp = await client.get("/api/v1/tasktree/auth/me")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_get_me_invalid_token(self, client: AsyncClient):

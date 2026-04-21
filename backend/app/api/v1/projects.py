@@ -4,6 +4,7 @@ TaskTree 项目管理路由
 提供项目 CRUD、归档、成员管理等端点。
 所有操作都通过 get_project_with_access() 进行权限校验。
 """
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, case
@@ -64,11 +65,19 @@ async def create_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # 将字符串日期转换为 date 对象
+    start_date = None
+    end_date = None
+    if project_data.start_date:
+        start_date = date.fromisoformat(project_data.start_date)
+    if project_data.end_date:
+        end_date = date.fromisoformat(project_data.end_date)
+
     project = Project(
         name=project_data.name,
         description=project_data.description,
-        start_date=project_data.start_date,
-        end_date=project_data.end_date,
+        start_date=start_date,
+        end_date=end_date,
         owner_id=current_user.id
     )
     db.add(project)

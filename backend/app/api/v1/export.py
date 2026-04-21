@@ -7,6 +7,7 @@ TaskTree 导入导出路由
 import io
 import json
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -94,10 +95,11 @@ async def export_json(
     }
 
     content = json.dumps(data, ensure_ascii=False, indent=2)
+    filename = quote(f"{project.name}.json")
     return StreamingResponse(
         io.BytesIO(content.encode("utf-8")),
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{project.name}.json"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -145,10 +147,11 @@ async def export_markdown(
     render_tasks(root_tasks)
 
     content = "\n".join(lines)
+    filename = quote(f"{project.name}.md")
     return StreamingResponse(
         io.BytesIO(content.encode("utf-8")),
         media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="{project.name}.md"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -210,7 +213,7 @@ async def export_excel(
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{project.name}.xlsx"'},
+        headers={"Content-Disposition": f'attachment; filename="{quote(f"{project.name}.xlsx")}"'},
     )
 
 
