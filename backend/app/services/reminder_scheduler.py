@@ -67,28 +67,37 @@ class ReminderScheduler:
     async def check_user_notifications(
         self,
         settings: UserNotificationSettings,
-        db: AsyncSession
+        db: AsyncSession,
+        is_manual: bool = False
     ):
-        """检查单个用户的任务并发送提醒"""
+        """检查单个用户的任务并发送提醒
+
+        Args:
+            settings: 用户通知设置
+            db: 数据库会话
+            is_manual: 是否手动触发（手动触发不计入每日配额）
+        """
         # 获取用户的今日发送记录
         today_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
 
-        result = await db.execute(
-            select(NotificationLog).where(
-                and_(
-                    NotificationLog.user_id == settings.user_id,
-                    NotificationLog.sent_at >= today_start
+        # 自动提醒才检查配额，手动触发直接通过
+        if not is_manual:
+            result = await db.execute(
+                select(NotificationLog).where(
+                    and_(
+                        NotificationLog.user_id == settings.user_id,
+                        NotificationLog.is_manual == False,
+                        NotificationLog.sent_at >= today_start
+                    )
                 )
             )
-        )
-        today_count = len(result.scalars().all())
+            today_count = len(result.scalars().all())
 
-        # 检查是否超过每日上限
-        if today_count >= settings.daily_limit:
-            print(f"⏭️ 用户 {settings.user_id} 今日已达上限 ({today_count}/{settings.daily_limit})")
-            return
+            if today_count >= settings.daily_limit:
+                print(f"⏭️ 用户 {settings.user_id} 今日已达上限 ({today_count}/{settings.daily_limit})")
+                return False
 
         # 解析规则
         rules = json.loads(settings.rules) if settings.rules else []
@@ -121,7 +130,7 @@ class ReminderScheduler:
                 })
 
         if not all_tasks:
-            return
+            return True  # 无任务，不算失败
 
         # 解析分析配置
         config = {}
@@ -147,12 +156,12 @@ class ReminderScheduler:
         analysis = await llm_service.analyze_tasks(all_tasks, project_name, config)
 
         if not analysis.get("need_remind"):
-            return
+            return None  # 不需要提醒
 
         # 检查是否已发送过类似消息（避免重复）
         task_ids = analysis.get("tasks_to_remind", [])
         if not task_ids:
-            return
+            return None  # 没有需要提醒的任务
 
         # 发送钉钉通知
         from app.services.dingtalk_service import DingTalkService
@@ -183,12 +192,14 @@ class ReminderScheduler:
                     user_id=settings.user_id,
                     task_id=task_id,
                     message_id=result.get("message_id"),
-                    message_content=message[:200]
+                    message_content=message[:200],
+                    is_manual=is_manual
                 )
                 db.add(log)
 
             await db.commit()
             print(f"✅ 用户 {settings.user_id} 提醒发送成功")
+            return True  # 发送成功
 
 
 # 全局调度器实例

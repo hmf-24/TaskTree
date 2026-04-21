@@ -248,6 +248,7 @@ class NotificationLog(Base):
     is_read = Column(Boolean, default=False, comment="是否已读")
     read_at = Column(DateTime, comment="阅读时间")
     sent_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), comment="发送时间")
+    is_manual = Column(Boolean, default=False, comment="是否手动触发")
 
     user = relationship('User')
     task = relationship('Task')

@@ -257,7 +257,7 @@ async def trigger_reminder(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """手动触发立即提醒"""
+    """手动触发立即提醒（不计入每日配额）"""
     from app.services.reminder_scheduler import reminder_scheduler
 
     # 获取用户设置
@@ -271,10 +271,15 @@ async def trigger_reminder(
     if not settings or not settings.dingtalk_webhook:
         return MessageResponse(code=400, message="未配置钉钉Webhook")
 
-    # 立即执行提醒检查
-    await reminder_scheduler.check_user_notifications(settings, db)
+    # 立即执行提醒检查（手动触发，不计入配额）
+    result = await reminder_scheduler.check_user_notifications(settings, db, is_manual=True)
 
-    return MessageResponse(message="提醒已发送")
+    if result is False:
+        return MessageResponse(code=400, message="已达每日上限")
+    elif result is True:
+        return MessageResponse(message="提醒已发送")
+    else:
+        return MessageResponse(message="无需提醒")
 
 
 @router.get("/stats", response_model=MessageResponse)
@@ -299,17 +304,26 @@ async def get_notification_stats(
 
     # 统计
     total = len(logs)
+    auto_count = sum(1 for log in logs if not log.is_manual)
+    manual_count = sum(1 for log in logs if log.is_manual)
     read_count = sum(1 for log in logs if log.is_read)
     read_rate = read_count / total * 100 if total > 0 else 0
 
-    # 按日期统计
+    # 按日期统计（区分手动/自动）
     daily_stats = {}
     for log in logs:
         date_key = log.sent_at.strftime("%Y-%m-%d") if log.sent_at else "unknown"
-        daily_stats[date_key] = daily_stats.get(date_key, 0) + 1
+        if date_key not in daily_stats:
+            daily_stats[date_key] = {"auto": 0, "manual": 0}
+        if log.is_manual:
+            daily_stats[date_key]["manual"] += 1
+        else:
+            daily_stats[date_key]["auto"] += 1
 
     return MessageResponse(data={
         "total": total,
+        "auto_count": auto_count,
+        "manual_count": manual_count,
         "read_count": read_count,
         "read_rate": round(read_rate, 1),
         "daily_stats": daily_stats,
