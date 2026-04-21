@@ -38,7 +38,7 @@ export default function NotificationPanel() {
     try {
       await notificationsAPI.markRead(id);
       fetchNotifications();
-    } catch (error: any) {
+    } catch {
       message.error('操作失败');
     }
   };
@@ -48,7 +48,7 @@ export default function NotificationPanel() {
       await notificationsAPI.markAllRead();
       fetchNotifications();
       message.success('已全部标记为已读');
-    } catch (error: any) {
+    } catch {
       message.error('操作失败');
     }
   };

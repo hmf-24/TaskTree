@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Modal, Upload, Button, message, Alert, Typography } from 'antd';
-import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
+import { Modal, Upload, message, Alert, Typography } from 'antd';
+import { InboxOutlined } from '@ant-design/icons';
 import { exportAPI } from '../../api';
 
 const { Dragger } = Upload;
