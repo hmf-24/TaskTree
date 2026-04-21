@@ -221,8 +221,11 @@ class UserNotificationSettings(Base):
     user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=False, index=True)
     dingtalk_webhook = Column(String(500), comment="钉钉Webhook URL")
     dingtalk_secret = Column(String(100), comment="钉钉签名密钥")
-    minmax_api_key = Column(String(200), comment="Minimax API Key")
-    minmax_group_id = Column(String(100), comment="Minimax Group ID")
+    # 大模型配置
+    llm_provider = Column(String(20), comment="大模型提供商: minmax/openai/anthropic"
+    llm_api_key = Column(String(200), comment="大模型API Key"
+    llm_model = Column(String(50), comment="大模型名称"
+    llm_group_id = Column(String(100), comment="Minimax Group ID"
     rules = Column(Text, comment="JSON格式的自定义规则")
     enabled = Column(Boolean, default=True, comment="是否启用智能提醒")
     daily_limit = Column(Integer, default=5, comment="每日提醒上限")

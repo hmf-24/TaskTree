@@ -13,16 +13,49 @@ import {
   Alert,
   Space,
   Tag,
+  Select,
 } from 'antd';
 import {
   UserOutlined,
   LockOutlined,
   SaveOutlined,
   BellOutlined,
-  ApiOutlined,
 } from '@ant-design/icons';
 import { authAPI, reminderSettingsAPI } from '../../api';
 import { useAuthStore } from '../../stores/auth';
+
+// 大模型提供商配置
+const LLM_PROVIDERS = {
+  minimax: {
+    name: 'Minimax',
+    models: [
+      { value: 'abab6.5s-chat', label: 'abab6.5s-chat' },
+      { value: 'abab6.5g-chat', label: 'abab6.5g-chat' },
+    ],
+    apiKeyPlaceholder: '输入您的Minimax API Key',
+    groupIdShow: true,
+  },
+  openai: {
+    name: 'OpenAI',
+    models: [
+      { value: 'gpt-4o', label: 'GPT-4o' },
+      { value: 'gpt-4o-mini', label: 'GPT-4o-mini' },
+      { value: 'gpt-4-turbo', label: 'GPT-4-turbo' },
+    ],
+    apiKeyPlaceholder: '输入您的OpenAI API Key (sk-...)',
+    groupIdShow: false,
+  },
+  anthropic: {
+    name: 'Anthropic',
+    models: [
+      { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+      { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+      { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+    ],
+    apiKeyPlaceholder: '输入您的Anthropic API Key (sk-ant-...)',
+    groupIdShow: false,
+  },
+};
 
 export default function Settings() {
   const { user, setAuth, token } = useAuthStore();
@@ -54,8 +87,10 @@ export default function Settings() {
             enabled: res.data.enabled,
             dingtalk_webhook: res.data.dingtalk_webhook,
             dingtalk_secret: res.data.dingtalk_secret,
-            minmax_api_key: res.data.minmax_api_key,
-            minmax_group_id: res.data.minmax_group_id,
+            llm_provider: res.data.llm_provider || 'minmax',
+            llm_api_key: res.data.llm_api_key,
+            llm_model: res.data.llm_model,
+            llm_group_id: res.data.llm_group_id,
             daily_limit: res.data.daily_limit || 5,
             rules: res.data.rules,
           });
@@ -128,8 +163,10 @@ export default function Settings() {
         enabled: values.enabled,
         dingtalk_webhook: values.dingtalk_webhook,
         dingtalk_secret: values.dingtalk_secret,
-        minmax_api_key: values.minmax_api_key,
-        minmax_group_id: values.minmax_group_id,
+        llm_provider: values.llm_provider,
+        llm_api_key: values.llm_api_key,
+        llm_model: values.llm_model,
+        llm_group_id: values.llm_group_id,
         daily_limit: values.daily_limit || 5,
         rules: values.rules,
       };
@@ -306,29 +343,62 @@ export default function Settings() {
 
             <Divider orientation="left">大模型配置</Divider>
 
-            <Alert
-              message="Minimax API 配置"
-              description="请填写您的Minimax API密钥以启用智能分析功能。密钥将保存在您的账户设置中。"
-              type="warning"
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
-
             <Form.Item
-              label="Minimax API Key"
-              name="minmax_api_key"
-              tooltip="从Minimax开放平台获取API Key"
+              label="大模型提供商"
+              name="llm_provider"
+              tooltip="选择要使用的大模型服务商"
             >
-              <Input.Password placeholder="输入您的Minimax API Key" />
+              <Select
+                placeholder="选择提供商"
+                onChange={() => {
+                  reminderForm.setFieldsValue({ llm_model: undefined });
+                }}
+              >
+                {Object.entries(LLM_PROVIDERS).map(([key, value]) => (
+                  <Select.Option key={key} value={key}>
+                    {value.name}
+                  </Select.Option>
+                ))}
+              </Select>
             </Form.Item>
 
             <Form.Item
-              label="Minimax Group ID"
-              name="minmax_group_id"
-              tooltip="从Minimax开放平台获取Group ID（可选，部分模型需要）"
+              label="模型选择"
+              name="llm_model"
+              tooltip="选择具体模型版本"
             >
-              <Input placeholder="输入您的Minimax Group ID（可选）" />
+              <Select placeholder="选择模型" allowClear>
+                {reminderForm.getFieldValue('llm_provider') &&
+                  LLM_PROVIDERS[reminderForm.getFieldValue('llm_provider')]?.models.map((m: any) => (
+                    <Select.Option key={m.value} value={m.value}>
+                      {m.label}
+                    </Select.Option>
+                  ))}
+              </Select>
             </Form.Item>
+
+            <Form.Item
+              label="API Key"
+              name="llm_api_key"
+              tooltip="从对应平台获取API Key"
+            >
+              <Input.Password
+                placeholder={
+                  LLM_PROVIDERS[reminderForm.getFieldValue('llm_provider')]?.apiKeyPlaceholder ||
+                  '输入API Key'
+                }
+              />
+            </Form.Item>
+
+            {reminderForm.getFieldValue('llm_provider') === 'minmax' && (
+              <Form.Item
+                label="Group ID（Minimax专属）"
+                name="llm_group_id"
+                tooltip="从Minimax开放平台获取Group ID（可选，部分模型需要）"
+              >
+                <Input placeholder="输入Group ID（可选）" />
+              </Form.Item>
+            )}
 
             <Divider orientation="left">高级设置</Divider>
 

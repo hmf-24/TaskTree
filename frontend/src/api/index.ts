@@ -150,8 +150,10 @@ export const reminderSettingsAPI = {
   updateSettings: (data: {
     dingtalk_webhook?: string;
     dingtalk_secret?: string;
-    minmax_api_key?: string;
-    minmax_group_id?: string;
+    llm_provider?: string;
+    llm_api_key?: string;
+    llm_model?: string;
+    llm_group_id?: string;
     rules?: any[];
     enabled?: boolean;
     daily_limit?: number;

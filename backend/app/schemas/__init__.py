@@ -279,8 +279,11 @@ class ReminderRule(BaseModel):
 class UserNotificationSettingsBase(BaseModel):
     dingtalk_webhook: Optional[str] = None
     dingtalk_secret: Optional[str] = None
-    minmax_api_key: Optional[str] = None
-    minmax_group_id: Optional[str] = None
+    # 大模型配置
+    llm_provider: Optional[str] = "minmax"  # minmax, openai, anthropic
+    llm_api_key: Optional[str] = None
+    llm_model: Optional[str] = None  # 模型名称
+    llm_group_id: Optional[str] = None  # Minmax Group ID
     rules: Optional[list[ReminderRule]] = None
     enabled: bool = True
     daily_limit: int = 5
@@ -293,8 +296,10 @@ class UserNotificationSettingsCreate(UserNotificationSettingsBase):
 class UserNotificationSettingsUpdate(BaseModel):
     dingtalk_webhook: Optional[str] = None
     dingtalk_secret: Optional[str] = None
-    minmax_api_key: Optional[str] = None
-    minmax_group_id: Optional[str] = None
+    llm_provider: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_group_id: Optional[str] = None
     rules: Optional[list[ReminderRule]] = None
     enabled: Optional[bool] = None
     daily_limit: Optional[int] = None

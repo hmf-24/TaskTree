@@ -123,16 +123,18 @@ class ReminderScheduler:
         if not all_tasks:
             return
 
-        # 使用用户配置的 Minmax API（如有）
-        from app.services.minimax_service import MinmaxService
-        minimax_service = MinmaxService(
-            api_key=settings.minmax_api_key,
-            group_id=settings.minmax_group_id
+        # 使用用户配置的大模型
+        from app.services.llm_service import LLMService
+        llm_service = LLMService(
+            provider=settings.llm_provider or "minmax",
+            api_key=settings.llm_api_key,
+            model=settings.llm_model,
+            group_id=settings.llm_group_id
         )
 
         project_name = projects[0].name if projects else "多项目"
 
-        analysis = await minimax_service.analyze_tasks(all_tasks, project_name)
+        analysis = await llm_service.analyze_tasks(all_tasks, project_name)
 
         if not analysis.get("need_remind"):
             return
@@ -151,8 +153,16 @@ class ReminderScheduler:
         )
 
         message = analysis.get("message", "您有任务需要关注")
+        plan = analysis.get("plan", "")
+
+        # 构建提醒内容，包含规划建议
+        content = f"## 🔔 任务提醒\n\n{message}\n"
+        if plan:
+            content += f"\n📋 **规划建议**\n{plan}\n"
+        content += "\n---\n*来自 TaskTree 智能助手*"
+
         result = await service.send_message(
-            content=f"## 🔔 任务提醒\n\n{message}\n\n---\n*来自 TaskTree 智能助手*",
+            content=content,
             title="TaskTree 智能提醒"
         )
 

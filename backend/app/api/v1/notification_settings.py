@@ -88,8 +88,10 @@ async def get_notification_settings(
             user_id=current_user.id,
             dingtalk_webhook=None,
             dingtalk_secret=None,
-            minmax_api_key=None,
-            minmax_group_id=None,
+            llm_provider="minmax",
+            llm_api_key=None,
+            llm_model=None,
+            llm_group_id=None,
             rules=DEFAULT_RULES,
             enabled=True,
             daily_limit=5
@@ -103,8 +105,10 @@ async def get_notification_settings(
         user_id=settings.user_id,
         dingtalk_webhook=settings.dingtalk_webhook,
         dingtalk_secret=settings.dingtalk_secret,
-        minmax_api_key=settings.minmax_api_key,
-        minmax_group_id=settings.minmax_group_id,
+        llm_provider=settings.llm_provider,
+        llm_api_key=settings.llm_api_key,
+        llm_model=settings.llm_model,
+        llm_group_id=settings.llm_group_id,
         rules=rules,
         enabled=settings.enabled,
         daily_limit=settings.daily_limit
@@ -133,10 +137,14 @@ async def create_or_update_settings(
             settings.dingtalk_webhook = settings_data.dingtalk_webhook
         if settings_data.dingtalk_secret is not None:
             settings.dingtalk_secret = settings_data.dingtalk_secret
-        if settings_data.minmax_api_key is not None:
-            settings.minmax_api_key = settings_data.minmax_api_key
-        if settings_data.minmax_group_id is not None:
-            settings.minmax_group_id = settings_data.minmax_group_id
+        if settings_data.llm_provider is not None:
+            settings.llm_provider = settings_data.llm_provider
+        if settings_data.llm_api_key is not None:
+            settings.llm_api_key = settings_data.llm_api_key
+        if settings_data.llm_model is not None:
+            settings.llm_model = settings_data.llm_model
+        if settings_data.llm_group_id is not None:
+            settings.llm_group_id = settings_data.llm_group_id
         if settings_data.rules is not None:
             settings.rules = rules_json
         if settings_data.enabled is not None:
@@ -149,8 +157,10 @@ async def create_or_update_settings(
             user_id=current_user.id,
             dingtalk_webhook=settings_data.dingtalk_webhook,
             dingtalk_secret=settings_data.dingtalk_secret,
-            minmax_api_key=settings_data.minmax_api_key,
-            minmax_group_id=settings_data.minmax_group_id,
+            llm_provider=settings_data.llm_provider or "minmax",
+            llm_api_key=settings_data.llm_api_key,
+            llm_model=settings_data.llm_model,
+            llm_group_id=settings_data.llm_group_id,
             rules=rules_json,
             enabled=settings_data.enabled,
             daily_limit=settings_data.daily_limit
