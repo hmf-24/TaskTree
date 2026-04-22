@@ -648,11 +648,28 @@ async def update_tag(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(TaskTag).where(TaskTag.id == tag_id))
+    # 查询标签并验证项目权限
+    result = await db.execute(
+        select(TaskTag).options(selectinload(TaskTag.project)).where(TaskTag.id == tag_id)
+    )
     tag = result.scalar_one_or_none()
 
     if not tag:
         raise HTTPException(status_code=404, detail="标签不存在")
+
+    # 验证用户是否有项目访问权限
+    project = tag.project
+    if project.owner_id != current_user.id:
+        result = await db.execute(
+            select(ProjectMember).where(
+                and_(
+                    ProjectMember.project_id == project.id,
+                    ProjectMember.user_id == current_user.id
+                )
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="没有权限操作此标签")
 
     if tag_data.name:
         tag.name = tag_data.name
@@ -670,11 +687,28 @@ async def delete_tag(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(TaskTag).where(TaskTag.id == tag_id))
+    # 查询标签并验证项目权限
+    result = await db.execute(
+        select(TaskTag).options(selectinload(TaskTag.project)).where(TaskTag.id == tag_id)
+    )
     tag = result.scalar_one_or_none()
 
     if not tag:
         raise HTTPException(status_code=404, detail="标签不存在")
+
+    # 验证用户是否有项目访问权限
+    project = tag.project
+    if project.owner_id != current_user.id:
+        result = await db.execute(
+            select(ProjectMember).where(
+                and_(
+                    ProjectMember.project_id == project.id,
+                    ProjectMember.user_id == current_user.id
+                )
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="没有权限操作此标签")
 
     await db.delete(tag)
     await db.commit()

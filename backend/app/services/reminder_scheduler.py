@@ -173,7 +173,7 @@ class ReminderScheduler:
                     continue
                 all_tasks.append({
                     "id": task.id,
-                    "project_id": task.id,
+                    "project_id": task.project_id,
                     "project_name": project.name,
                     "name": task.name,
                     "status": task.status,

@@ -23,14 +23,12 @@ security = HTTPBearer()
 
 
 async def get_current_user(
-    credentials: str = Depends(security),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """从 auth 路由导入 get_current_user 函数"""
     from app.api.v1.auth import get_current_user as _get_current_user
-    from fastapi.security import HTTPAuthorizationCredentials
-    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=credentials)
-    return await _get_current_user(creds, db)
+    return await _get_current_user(credentials, db)
 
 
 # 默认提醒规则模板
@@ -103,13 +101,16 @@ async def get_notification_settings(
     # 解析 rules JSON
     rules = json.loads(settings.rules) if settings.rules else DEFAULT_RULES
 
+    # 解密 API Key
+    api_key = decrypt_api_key(settings.llm_api_key_encrypted) if settings.llm_api_key_encrypted else None
+
     return UserNotificationSettingsResponse(
         id=settings.id,
         user_id=settings.user_id,
         dingtalk_webhook=settings.dingtalk_webhook,
         dingtalk_secret=settings.dingtalk_secret,
         llm_provider=settings.llm_provider,
-        llm_api_key=settings.llm_api_key,
+        llm_api_key=api_key,
         llm_model=settings.llm_model,
         llm_group_id=settings.llm_group_id,
         rules=rules,

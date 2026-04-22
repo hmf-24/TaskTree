@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional, Any
 from datetime import datetime
+from app.core.constants import TaskStatus, TaskPriority
 
 
 # ========== 用户相关 ==========
@@ -135,13 +136,34 @@ class TaskUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     assignee_id: Optional[int] = None
-    status: Optional[str] = None
-    priority: Optional[str] = None
-    progress: Optional[int] = None
+    status: Optional[TaskStatus] = None
+    priority: Optional[TaskPriority] = None
+    progress: Optional[int] = Field(default=None, ge=0, le=100)
     start_date: Optional[str] = None
     due_date: Optional[str] = None
-    estimated_time: Optional[int] = None
-    actual_time: Optional[int] = None
+    estimated_time: Optional[int] = Field(default=None, ge=0)
+    actual_time: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator('status', mode='before')
+    @classmethod
+    def validate_status(cls, v):
+        if v is None:
+            return v
+        # 尝试从字符串转换
+        try:
+            return TaskStatus(v.lower())
+        except ValueError:
+            raise ValueError(f'无效的状态值: {v}')
+
+    @field_validator('priority', mode='before')
+    @classmethod
+    def validate_priority(cls, v):
+        if v is None:
+            return v
+        try:
+            return TaskPriority(v.lower())
+        except ValueError:
+            raise ValueError(f'无效的优先级: {v}')
 
 
 class TaskResponse(TaskBase):
