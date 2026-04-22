@@ -189,7 +189,6 @@ class ReminderScheduler:
         # 解析分析配置
         config = {}
         if settings.analysis_config:
-            import json
             try:
                 config = json.loads(settings.analysis_config)
             except:

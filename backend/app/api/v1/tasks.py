@@ -814,13 +814,30 @@ async def delete_comment(
         raise HTTPException(status_code=404, detail="评论不存在")
 
     if comment.user_id != current_user.id:
-        # 检查是否是项目所有者
+        # 检查是否是项目所有者或管理员
         result = await db.execute(
             select(Task).options(selectinload(Task.project)).where(Task.id == comment.task_id)
         )
         task = result.scalar_one_or_none()
-        if task and task.project.owner_id != current_user.id:
-            raise HTTPException(status_code=403, detail="没有权限删除此评论")
+        if task:
+            # 检查是否是项目所有者
+            if task.project.owner_id == current_user.id:
+                pass  # 所有者可以删除
+            else:
+                # 检查是否是管理员
+                result = await db.execute(
+                    select(ProjectMember).where(
+                        and_(
+                            ProjectMember.project_id == task.project_id,
+                            ProjectMember.user_id == current_user.id
+                        )
+                    )
+                )
+                member = result.scalar_one_or_none()
+                if not member or member.role not in ('owner', 'admin'):
+                    raise HTTPException(status_code=403, detail="没有权限删除此评论")
+        else:
+            raise HTTPException(status_code=404, detail="评论关联的任务不存在")
 
     await db.delete(comment)
     await db.commit()

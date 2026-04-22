@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, Any
 from datetime import datetime
 
@@ -15,6 +15,17 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     nickname: Optional[str] = None
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError('密码长度至少8位')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('密码必须包含数字')
+        if not any(c.isalpha() for c in v):
+            raise ValueError('密码必须包含字母')
+        return v
 
 
 class UserUpdate(BaseModel):
