@@ -36,6 +36,8 @@ import {
   ApartmentOutlined,
   TagOutlined,
   BarChartOutlined,
+  PlusSquareOutlined,
+  MinusSquareOutlined,
 } from '@ant-design/icons';
 import {
   DndContext,
@@ -47,6 +49,7 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
+  sortableKeyboardCoordinates,
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -149,7 +152,11 @@ function SortableTaskItem({
   onAddChild,
   onStatusChange,
   onOpenDetail,
+  onSelect,
+  selectedId,
   depth = 0,
+  expanded = true,
+  onToggleExpand,
 }: {
   task: Task;
   onEdit: (t: Task) => void;
@@ -157,11 +164,18 @@ function SortableTaskItem({
   onAddChild: (t: Task) => void;
   onStatusChange: (t: Task, newStatus: string) => void;
   onOpenDetail: (t: Task) => void;
+  onSelect?: (t: Task) => void;
+  selectedId?: number | null;
   depth?: number;
+  expanded?: boolean;
+  onToggleExpand?: (t: Task) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, data } = useSortable({
     id: String(task.id),
+    data: { type: 'task', task },
   });
+
+  const isSelected = selectedId === task.id;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -186,8 +200,21 @@ function SortableTaskItem({
   ];
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-2" {...attributes}>
-      <Card size="small" className="bg-white" hoverable>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`mb-2 ${isSelected ? 'ring-2 ring-blue-500 rounded' : ''}`}
+      {...attributes}
+    >
+      <Card
+        size="small"
+        className="bg-white transition-colors"
+        hoverable
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect?.(task);
+        }}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0 }}>
             <span {...listeners} style={{ cursor: 'grab', color: '#bfbfbf', fontSize: 16 }}>
@@ -224,8 +251,32 @@ function SortableTaskItem({
               {STATUS_LABELS[task.status]}
             </Tag>
             <Progress type="circle" percent={task.progress} size={28} />
+            {/* 展开/收起按钮 */}
+            {task.children && task.children.length > 0 && (
+              <Button
+                type="text"
+                size="small"
+                icon={expanded ? <MinusSquareOutlined /> : <PlusSquareOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExpand?.(task);
+                }}
+              />
+            )}
+            {/* 快捷添加子任务 */}
+            <Tooltip title="添加子任务">
+              <Button
+                type="text"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddChild(task);
+                }}
+              />
+            </Tooltip>
             <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-              <Button type="text" size="small" icon={<MoreOutlined />} />
+              <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
             </Dropdown>
           </Space>
         </div>
@@ -244,6 +295,8 @@ function SortableTaskItem({
                   onAddChild={onAddChild}
                   onStatusChange={onStatusChange}
                   onOpenDetail={onOpenDetail}
+                  onSelect={onSelect}
+                  selectedId={selectedId}
                   depth={depth + 1}
                 />
               ))}
@@ -280,13 +333,62 @@ export default function ProjectDetail() {
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
 
+  // 选中任务处理
+  const handleSelectTask = (task: Task, e?: React.MouseEvent) => {
+    if (e?.shiftKey) {
+      // Shift+点击：范围选择
+      setSelectedTaskId(task.id);
+    } else if (e?.ctrlKey || e?.metaKey) {
+      // Ctrl+点击：多选切换
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(task.id)) {
+          next.delete(task.id);
+        } else {
+          next.add(task.id);
+        }
+        return next;
+      });
+      setSelectedTaskId(task.id);
+    } else {
+      // 普通点击：单选
+      setSelectedTaskId(task.id);
+      setSelectedIds(new Set());
+    }
+  };
+
+  // 多选状态
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // 展开/收起状态
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+
+  const handleToggleExpand = (task: Task) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(task.id)) {
+        next.delete(task.id);
+      } else {
+        next.add(task.id);
+      }
+      return next;
+    });
+  };
+
+  const isExpanded = (taskId: number) => expandedIds.has(taskId);
+
   // 拖拽活跃项
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // 选中任务（键盘导航）
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
 
   // 拖拽传感器
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor)
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
   );
 
   const fetchProject = useCallback(async () => {
@@ -322,6 +424,80 @@ export default function ProjectDetail() {
       fetchTasks();
     }
   }, [id, fetchProject, fetchTasks]);
+
+  // 键盘快捷键
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 忽略输入框中的键盘事件
+      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+
+      // N: 新建任务
+      if (key === 'n' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleAddTask();
+        return;
+      }
+
+      // Delete/Backspace: 删除选中任务
+      if ((key === 'delete' || key === 'backspace') && selectedTaskId) {
+        e.preventDefault();
+        const task = findTaskById(tasks, selectedTaskId);
+        if (task) {
+          handleDeleteTask(task);
+        }
+        return;
+      }
+
+      // 选中任务时，Enter打开详情
+      if (key === 'enter' && selectedTaskId) {
+        e.preventDefault();
+        const task = findTaskById(tasks, selectedTaskId);
+        if (task) {
+          handleOpenDetail(task);
+        }
+        return;
+      }
+
+      // Space: 切换选中任务状态
+      if (key === ' ' && selectedTaskId) {
+        e.preventDefault();
+        const task = findTaskById(tasks, selectedTaskId);
+        if (task) {
+          handleStatusChange(task, STATUS_FLOW[task.status] || 'in_progress');
+        }
+        return;
+      }
+
+      // ArrowUp/ArrowDown: 选中上下任务
+      if (key === 'arrowup' || key === 'arrowdown') {
+        e.preventDefault();
+        const allIds = flattenTaskIds(tasks);
+        if (allIds.length === 0) return;
+        const currentIdx = selectedTaskId ? allIds.indexOf(String(selectedTaskId)) : -1;
+        let newIdx: number;
+        if (key === 'arrowup') {
+          newIdx = currentIdx <= 0 ? allIds.length - 1 : currentIdx - 1;
+        } else {
+          newIdx = currentIdx >= allIds.length - 1 ? 0 : currentIdx + 1;
+        }
+        setSelectedTaskId(Number(allIds[newIdx]));
+        return;
+      }
+
+      // Escape: 取消选中
+      if (key === 'escape') {
+        setSelectedTaskId(null);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [tasks, selectedTaskId]);
 
   const handleAddTask = (parentTask?: Task) => {
     setParentTaskId(parentTask?.id || null);
@@ -410,31 +586,144 @@ export default function ProjectDetail() {
     }
   };
 
-  // 拖拽处理
+  // 拖拽处理 - 丝滑版
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
+    const { active, over, activatorEvent } = event;
     setActiveId(null);
 
     if (!over || active.id === over.id) return;
 
-    const activeTask = findTaskById(tasks, Number(active.id));
-    const overTask = findTaskById(tasks, Number(over.id));
+    const activeTaskId = Number(active.id);
+    const activeTask = findTaskById(tasks, activeTaskId);
+    const overData = over.data.current as { type: string; task?: Task };
 
-    if (!activeTask || !overTask) return;
+    if (!activeTask) return;
 
+    // 判断Ctrl键是否按下（嵌套模式）
+    const isCtrlPressed = activatorEvent && (activatorEvent as KeyboardEvent).ctrlKey;
+
+    // 获取目标任务
+    const overTask = overData?.task;
+    if (!overTask) return;
+
+    // 判断拖放模式
+    let newParentId: number | undefined;
+    let newSortOrder = 0;
+
+    if (isCtrlPressed) {
+      // Ctrl+拖拽 → 嵌套为子任务
+      newParentId = overTask.id;
+      newSortOrder = 0;
+    } else {
+      // 普通拖拽 → 根据放置位置判断
+      // 1. 目标是自己的父任务 → 移到同级顶部
+      // 2. 目标是同级任务 → 插入到附近
+      // 3. 目标是其他任务 → 判断上下位置
+      if (overTask.parent_id === activeTask.parent_id) {
+        // 同级任务 - 简单移动到目标位置
+        newParentId = overTask.parent_id;
+        newSortOrder = overTask.sort_order;
+      } else {
+        // 不同级 - 变成同级任务
+        newParentId = overTask.parent_id;
+        newSortOrder = overTask.sort_order;
+      }
+    }
+
+    // 检查是否形成循环依赖
+    if (newParentId) {
+      let checkId = newParentId;
+      while (checkId) {
+        if (checkId === activeTaskId) {
+          message.warning('不能将任务移动到其子任务下');
+          return;
+        }
+        const parent = findTaskById(tasks, checkId);
+        checkId = parent?.parent_id;
+      }
+    }
+
+    // 相同位置不需要移动
+    if (newParentId === activeTask.parent_id && newSortOrder === activeTask.sort_order) {
+      return;
+    }
+
+    // 乐观更新 - 立即更新本地状态，不等待API
+    setTasks((prev) => {
+      const newTasks = JSON.parse(JSON.stringify(prev));
+
+      // 找到并移除任务
+      const removeTask = (list: Task[]): Task | null => {
+        for (let i = 0; i < list.length; i++) {
+          if (list[i].id === activeTaskId) {
+            return list.splice(i, 1)[0];
+          }
+          if (list[i].children?.length) {
+            const found = removeTask(list[i].children!);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      // 插入任务到新位置
+      const insertTask = (list: Task[], parentId: number | undefined, order: number) => {
+        // 从列表中获取同级任务
+        const siblings = parentId === undefined
+          ? list.filter(t => t.parent_id === null || t.parent_id === undefined)
+          : list.filter(t => t.parent_id === parentId);
+
+        // 找到要插入的位置
+        let insertIndex = siblings.findIndex(t => t.sort_order >= order);
+        if (insertIndex === -1) insertIndex = siblings.length;
+
+        // 找到正确的父任务列表
+        let targetList = list;
+        if (parentId !== undefined) {
+          const findParent = (list: Task[]): Task | undefined => {
+            for (const t of list) {
+              if (t.id === parentId) return t;
+              if (t.children?.length) {
+                const found = findParent(t.children);
+                if (found) return found;
+              }
+            }
+            return undefined;
+          };
+          const parent = findParent(list);
+          targetList = parent?.children || list;
+        }
+
+        const task = { ...activeTask, parent_id: parentId, sort_order: order };
+        targetList.splice(insertIndex, 0, task);
+
+        // 重新排序
+        targetList.forEach((t, i) => { t.sort_order = i; });
+      };
+
+      const movedTask = removeTask(newTasks);
+      if (movedTask && overTask) {
+        movedTask.parent_id = newParentId;
+        insertTask(newTasks, newParentId, newSortOrder);
+      }
+
+      return newTasks;
+    });
+
+    // 调用API
     try {
-      // 移动到目标任务的同级位置
-      await tasksAPI.move(activeTask.id, {
-        parent_id: overTask.parent_id ?? undefined,
-        sort_order: overTask.sort_order,
+      await tasksAPI.move(activeTaskId, {
+        parent_id: newParentId,
+        sort_order: newSortOrder,
       });
-      fetchTasks();
     } catch (error: any) {
+      // 失败回滚
       message.error(error.message || '移动失败');
+      fetchTasks();
     }
   };
 
@@ -464,6 +753,35 @@ export default function ProjectDetail() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
             添加任务
           </Button>
+          {selectedIds.size > 0 && (
+            <>
+              <Button onClick={() => {
+                // 批量删除
+                Modal.confirm({
+                  title: '批量删除',
+                  content: `确定要删除选中的 ${selectedIds.size} 个任务吗？`,
+                  onOk: async () => {
+                    for (const id of selectedIds) {
+                      try {
+                        await tasksAPI.delete(id, false);
+                      } catch (e) {}
+                    }
+                    message.success(`已删除 ${selectedIds.size} 个任务`);
+                    setSelectedIds(new Set());
+                    fetchTasks();
+                  }
+                });
+              }}>
+                删除选中 ({selectedIds.size})
+              </Button>
+              <Button onClick={() => {
+                setSelectedIds(new Set());
+                setSelectedTaskId(null);
+              }}>
+                取消选择
+              </Button>
+            </>
+          )}
           <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
             标签管理
           </Button>
@@ -504,6 +822,9 @@ export default function ProjectDetail() {
                   onAddChild={handleAddTask}
                   onStatusChange={handleStatusChange}
                   onOpenDetail={handleOpenDetail}
+                  onSelect={handleSelectTask}
+                  selectedId={selectedTaskId}
+                  onToggleExpand={handleToggleExpand}
                 />
               ))}
             </SortableContext>
@@ -680,79 +1001,102 @@ function KanbanView({
     { key: 'cancelled', title: '已取消', color: '#ff4d4f' },
   ];
 
+  // 拖拽处理 - 列之间移动
+  const handleDragEnd = async (event: { active: any; over: any }) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const task = flatTasks.find(t => t.id === Number(active.id));
+    const targetStatus = over.id;
+
+    if (task && task.status !== targetStatus) {
+      try {
+        await onStatusChange(task, targetStatus);
+      } catch (error) {
+        // 失败不处理
+      }
+    }
+  };
+
   return (
-    <div
-      style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 16 }}
-    >
-      {columns.map((col) => {
-        const colTasks = flatTasks.filter((t) => t.status === col.key);
-        return (
-          <div
-            key={col.key}
-            style={{ background: '#fafafa', borderRadius: 8, padding: 12, minHeight: 300 }}
-          >
+    <DndContext onDragEnd={handleDragEnd}>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 16 }}
+      >
+        {columns.map((col) => {
+          const colTasks = flatTasks.filter((t) => t.status === col.key);
+          return (
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginBottom: 12,
-                fontWeight: 600,
-              }}
+              key={col.key}
+              id={col.key}
+              style={{ background: '#fafafa', borderRadius: 8, padding: 12, minHeight: 300 }}
             >
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
-              <span>{col.title}</span>
-              <Tag style={{ margin: 0 }}>{colTasks.length}</Tag>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {colTasks.map((task) => (
-                <Card
-                  key={task.id}
-                  size="small"
-                  hoverable
-                  onClick={() => onOpenDetail(task)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div style={{ marginBottom: 8 }}>
-                    <span className="font-medium">{task.name}</span>
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>
-                      {PRIORITY_LABELS[task.priority]}
-                    </Tag>
-                    <Progress type="circle" percent={task.progress} size={24} />
-                  </div>
-                  {col.key !== 'completed' && col.key !== 'cancelled' && (
-                    <div style={{ marginTop: 8 }}>
-                      <Button
-                        size="small"
-                        type="link"
-                        style={{ padding: 0 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStatusChange(task, STATUS_FLOW[task.status]);
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 12,
+                  fontWeight: 600,
+                }}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
+                <span>{col.title}</span>
+                <Tag style={{ margin: 0 }}>{colTasks.length}</Tag>
+              </div>
+              <SortableContext items={colTasks.map(t => String(t.id))} strategy={verticalListSortingStrategy}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {colTasks.map((task) => (
+                    <Card
+                      key={task.id}
+                      id={task.id}
+                      size="small"
+                      hoverable
+                      onClick={() => onOpenDetail(task)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div style={{ marginBottom: 8 }}>
+                        <span className="font-medium">{task.name}</span>
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
                         }}
                       >
-                        → {STATUS_LABELS[STATUS_FLOW[task.status]]}
-                      </Button>
-                    </div>
+                        <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>
+                          {PRIORITY_LABELS[task.priority]}
+                        </Tag>
+                        <Progress type="circle" percent={task.progress} size={24} />
+                      </div>
+                      {col.key !== 'completed' && col.key !== 'cancelled' && (
+                        <div style={{ marginTop: 8 }}>
+                          <Button
+                            size="small"
+                            type="link"
+                            style={{ padding: 0 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onStatusChange(task, STATUS_FLOW[task.status]);
+                            }}
+                          >
+                            → {STATUS_LABELS[STATUS_FLOW[task.status]]}
+                          </Button>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                  {colTasks.length === 0 && (
+                    <div style={{ textAlign: 'center', color: '#bfbfbf', padding: 24 }}>暂无任务</div>
                   )}
-                </Card>
-              ))}
-              {colTasks.length === 0 && (
-                <div style={{ textAlign: 'center', color: '#bfbfbf', padding: 24 }}>暂无任务</div>
-              )}
+                </div>
+              </SortableContext>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </DndContext>
   );
 }
 
