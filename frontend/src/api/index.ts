@@ -169,9 +169,3 @@ export const reminderSettingsAPI = {
   parseIntent: (text: string) => api.post('/notifications/intent/parse', { text }),
   autoClassify: (projectId: number) => api.post('/notifications/tasks/auto-classify', { project_id: projectId }),
 };
-
-// Search API
-export const searchAPI = {
-  search: (params: { q: string; type?: string; project_id?: number }) =>
-    api.get('/search', { params }),
-};

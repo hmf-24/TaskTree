@@ -226,6 +226,7 @@ class UserNotificationSettings(Base):
     llm_api_key_encrypted = Column(Text, comment="大模型API Key（加密）")
     llm_model = Column(String(50), comment="大模型名称")
     llm_group_id = Column(String(100), comment="Minimax Group ID")
+    analysis_config = Column(Text, comment="分析维度配置JSON，如{\"overdue\": true, \"progress_stalled\": true}")
     rules = Column(Text, comment="JSON格式的自定义规则")
     enabled = Column(Boolean, default=True, comment="是否启用智能提醒")
     daily_limit = Column(Integer, default=5, comment="每日提醒上限")

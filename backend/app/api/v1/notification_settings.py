@@ -4,12 +4,13 @@ TaskTree 智能提醒设置接口
 用户配置钉钉Webhook和自定义提醒规则。
 """
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
+from app.core.crypto import encrypt_api_key, decrypt_api_key
 from app.models import User, UserNotificationSettings, NotificationLog
 from app.schemas import (
     UserNotificationSettingsCreate,
@@ -17,23 +18,11 @@ from app.schemas import (
     UserNotificationSettingsResponse,
     MessageResponse
 )
+from app.api.v1.auth import get_current_user
 
 router = APIRouter(prefix="/notifications", tags=["智能提醒"])
-security = HTTPBearer()
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
-) -> User:
-    """从 auth 路由导入 get_current_user 函数"""
-    from app.api.v1.auth import get_current_user as _get_current_user
-    return await _get_current_user(credentials, db)
-
 
 # 默认提醒规则模板
-# 加密工具
-from app.core.crypto import encrypt_api_key, decrypt_api_key
 
 DEFAULT_RULES = [
     {
@@ -185,7 +174,6 @@ async def get_notification_logs(
 ):
     """获取通知发送记录"""
     # 获取今日发送数量
-    from datetime import datetime, timedelta, timezone
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     result = await db.execute(
@@ -230,7 +218,6 @@ async def notification_callback(
     db: AsyncSession = Depends(get_db)
 ):
     """已读回执回调 - 用户点击钉钉消息链接后调用"""
-    from datetime import datetime, timezone
 
     result = await db.execute(
         select(NotificationLog).where(
@@ -293,8 +280,6 @@ async def get_notification_stats(
     db: AsyncSession = Depends(get_db)
 ):
     """获取通知统计报表"""
-    from datetime import timedelta
-
     start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
     # 获取该时间段内的通知
@@ -384,7 +369,3 @@ async def auto_classify_tasks(
     result = await llm.auto_classify_tasks(task_list)
 
     return MessageResponse(data=result)
-
-
-# 依赖导入
-from datetime import datetime, timedelta, timezone

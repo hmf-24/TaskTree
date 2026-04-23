@@ -21,6 +21,7 @@ import {
   SaveOutlined,
   BellOutlined,
 } from '@ant-design/icons';
+import { Helmet } from 'react-helmet-async';
 import { authAPI, reminderSettingsAPI } from '../../api';
 import { useAuthStore } from '../../stores/auth';
 
@@ -69,6 +70,9 @@ export default function Settings() {
   const [triggering, setTriggering] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const [statsData, setStatsData] = useState<any>(null);
+
+  // 监听 llm_provider 字段变化以联动模型列表
+  const watchedProvider = Form.useWatch('llm_provider', reminderForm);
 
   useEffect(() => {
     if (user) {
@@ -293,7 +297,11 @@ export default function Settings() {
               name="new_password"
               rules={[
                 { required: true, message: '请输入新密码' },
-                { min: 6, message: '密码至少6位' },
+                { min: 8, message: '密码至少8位' },
+                {
+                  pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/,
+                  message: '密码必须包含字母和数字',
+                },
               ]}
             >
               <Input.Password prefix={<LockOutlined />} placeholder="请输入新密码" />
@@ -403,8 +411,8 @@ export default function Settings() {
               tooltip="选择具体模型版本"
             >
               <Select placeholder="选择模型" allowClear>
-                {reminderForm.getFieldValue('llm_provider') &&
-                  LLM_PROVIDERS[reminderForm.getFieldValue('llm_provider')]?.models.map((m: any) => (
+                {watchedProvider &&
+                  (LLM_PROVIDERS as any)[watchedProvider]?.models.map((m: any) => (
                     <Select.Option key={m.value} value={m.value}>
                       {m.label}
                     </Select.Option>
@@ -419,13 +427,13 @@ export default function Settings() {
             >
               <Input.Password
                 placeholder={
-                  LLM_PROVIDERS[reminderForm.getFieldValue('llm_provider')]?.apiKeyPlaceholder ||
+                  (watchedProvider && (LLM_PROVIDERS as any)[watchedProvider]?.apiKeyPlaceholder) ||
                   '输入API Key'
                 }
               />
             </Form.Item>
 
-            {reminderForm.getFieldValue('llm_provider') === 'minmax' && (
+            {watchedProvider === 'minmax' && (
               <Form.Item
                 label="Group ID（Minimax专属）"
                 name="llm_group_id"
@@ -437,27 +445,20 @@ export default function Settings() {
 
             <Divider orientation="left">分析维度配置</Divider>
 
-            <Form.Item
-              label="启用分析维度"
-              tooltip="选择要启用哪些智能分析维度"
-            >
-              <Space direction="vertical">
-                <Form.Item name={['analysis_config', 'overdue']} valuePropName="checked">
-                  <Switch>逾期检测</Switch>
-                </Form.Item>
-                <Form.Item name={['analysis_config', 'progress_stalled']} valuePropName="checked">
-                  <Switch>进度落后检测</Switch>
-                </Form.Item>
-                <Form.Item name={['analysis_config', 'dependency_unblocked']} valuePropName="checked">
-                  <Switch>依赖解除检测</Switch>
-                </Form.Item>
-                <Form.Item name={['analysis_config', 'team_load']} valuePropName="checked">
-                  <Switch>团队负荷分析</Switch>
-                </Form.Item>
-                <Form.Item name={['analysis_config', 'risk_prediction']} valuePropName="checked">
-                  <Switch>风险预测</Switch>
-                </Form.Item>
-              </Space>
+            <Form.Item label="逾期检测" name={['analysis_config', 'overdue']} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item label="进度落后检测" name={['analysis_config', 'progress_stalled']} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item label="依赖解除检测" name={['analysis_config', 'dependency_unblocked']} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item label="团队负荷分析" name={['analysis_config', 'team_load']} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item label="风险预测" name={['analysis_config', 'risk_prediction']} valuePropName="checked">
+              <Switch />
             </Form.Item>
 
             <Divider orientation="left">高级设置</Divider>
@@ -582,6 +583,7 @@ export default function Settings() {
 
   return (
     <div className="p-6">
+      <Helmet><title>设置 - TaskTree</title></Helmet>
       <h1 className="text-2xl font-bold mb-6">设置</h1>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         <Tabs items={tabItems} defaultActiveKey="profile" />

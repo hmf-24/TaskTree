@@ -21,8 +21,15 @@ class ReminderScheduler:
     STATE_KEY = "last_run_at"
 
     def __init__(self):
-        self.session_maker = get_session_maker()
+        self._session_maker = None
         self.is_running = False
+
+    @property
+    def session_maker(self):
+        """延迟获取会话工厂，避免模块导入时触发数据库引擎创建。"""
+        if self._session_maker is None:
+            self._session_maker = get_session_maker()
+        return self._session_maker
 
     async def _save_state(self, db: AsyncSession):
         """保存调度状态"""

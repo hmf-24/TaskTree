@@ -24,7 +24,10 @@ class SimpleCrypto:
         # 从环境变量或传入key生成32字节密钥
         master_key = key or os.getenv("ENCRYPTION_KEY", "tasktree-default-key-change-me")
         # SHA256生成32字节
-        self.key = hashlib.sha256(master_key.encode()).digest()
+        raw_key = hashlib.sha256(master_key.encode()).digest()
+        self.key = raw_key
+        # Fernet 需要 URL-safe base64 编码的 32 字节 key
+        self.fernet_key = base64.urlsafe_b64encode(raw_key)
 
     def encrypt(self, plaintext: str) -> str:
         """加密字符串"""
@@ -32,7 +35,7 @@ class SimpleCrypto:
             return ""
 
         if HAS_CRYPTOGRAPHY:
-            fernet = Fernet(self.key)
+            fernet = Fernet(self.fernet_key)
             return fernet.encrypt(plaintext.encode()).decode()
         else:
             # 降级方案：base64 + XOR
@@ -49,7 +52,7 @@ class SimpleCrypto:
             return ""
 
         if HAS_CRYPTOGRAPHY:
-            fernet = Fernet(self.key)
+            fernet = Fernet(self.fernet_key)
             return fernet.decrypt(ciphertext.encode()).decode()
         else:
             # 降级方案：base64 + XOR

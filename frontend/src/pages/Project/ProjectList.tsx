@@ -10,6 +10,8 @@ import {
   message,
   Progress,
   Dropdown,
+  Spin,
+  Empty,
 } from 'antd';
 import {
   PlusOutlined,
@@ -19,6 +21,7 @@ import {
   InboxOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { projectsAPI } from '../../api';
 import { PROJECT_STATUS } from '../../constants';
 
@@ -132,6 +135,7 @@ export default function ProjectList() {
 
   return (
     <div className="p-6">
+      <Helmet><title>项目列表 - TaskTree</title></Helmet>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">我的项目</h1>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
@@ -139,37 +143,46 @@ export default function ProjectList() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {projects.map((project) => (
-          <Card
-            key={project.id}
-            hoverable
-            extra={
-              <Dropdown menu={{ items: getMenuItems(project) }} trigger={['click']}>
-                <Button type="text" icon={<MoreOutlined />} />
-              </Dropdown>
-            }
-            onClick={() => navigate(`/project/${project.id}`)}
-          >
-            <Card.Meta
-              title={<span className="text-lg font-medium">{project.name}</span>}
-              description={
-                <div className="mt-2">
-                  <p className="text-gray-500 text-sm mb-2">{project.description || '暂无描述'}</p>
-                  <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                    <span>任务: {project.task_count || 0}</span>
-                    <span>完成: {project.completed_count || 0}</span>
-                  </div>
-                  <Progress percent={progress(project)} size="small" />
-                </div>
+      <Spin spinning={loading}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {projects.map((project) => (
+            <Card
+              key={project.id}
+              hoverable
+              extra={
+                <Dropdown menu={{ items: getMenuItems(project) }} trigger={['click']}>
+                  <Button type="text" icon={<MoreOutlined />} />
+                </Dropdown>
               }
-            />
-          </Card>
-        ))}
-      </div>
+              onClick={() => navigate(`/project/${project.id}`)}
+            >
+              <Card.Meta
+                title={<span className="text-lg font-medium">{project.name}</span>}
+                description={
+                  <div className="mt-2">
+                    <p className="text-gray-500 text-sm mb-2">{project.description || '暂无描述'}</p>
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                      <span>任务: {project.task_count || 0}</span>
+                      <span>完成: {project.completed_count || 0}</span>
+                    </div>
+                    <Progress percent={progress(project)} size="small" />
+                  </div>
+                }
+              />
+            </Card>
+          ))}
+        </div>
+      </Spin>
 
       {projects.length === 0 && !loading && (
-        <div className="text-center text-gray-400 py-12">暂无项目，点击右上角创建第一个项目</div>
+        <Empty
+          description="还没有任何项目"
+          style={{ padding: 64 }}
+        >
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
+            创建第一个项目
+          </Button>
+        </Empty>
       )}
 
       <Modal

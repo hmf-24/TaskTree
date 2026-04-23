@@ -13,11 +13,11 @@ import {
   Descriptions,
   message,
 } from 'antd';
-import { SaveOutlined, CloseOutlined } from '@ant-design/icons';
+import { SaveOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { tasksAPI } from '../../api';
+import { tasksAPI, tagsAPI } from '../../api';
 import { STATUS_LABELS, PRIORITY_LABELS, STATUS_COLORS, PRIORITY_COLORS } from '../../constants';
-import type { Task } from '../../types';
+import type { Task, Tag as TagType } from '../../types';
 import CommentList from '../comment/CommentList';
 
 interface TaskDetailDrawerProps {
@@ -37,6 +37,9 @@ export default function TaskDetailDrawer({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [taskDetail, setTaskDetail] = useState<any>(null);
+  const [projectTags, setProjectTags] = useState<TagType[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [savingTags, setSavingTags] = useState(false);
 
   useEffect(() => {
     if (taskId && open) {
@@ -62,6 +65,20 @@ export default function TaskDetailDrawer({
           start_date: res.data.start_date ? dayjs(res.data.start_date) : null,
           due_date: res.data.due_date ? dayjs(res.data.due_date) : null,
         });
+
+        // 加载项目标签
+        if (res.data.project_id) {
+          try {
+            const tagRes = await tagsAPI.list(res.data.project_id);
+            if (tagRes.code === 200) {
+              setProjectTags(Array.isArray(tagRes.data) ? tagRes.data : []);
+            }
+          } catch { /* ignore */ }
+        }
+
+        // 设置已选标签
+        const existingTags = res.data.tags || [];
+        setSelectedTagIds(existingTags.map((t: TagType) => t.id));
       }
     } catch (error: any) {
       message.error(error.message || '获取任务详情失败');
@@ -98,6 +115,22 @@ export default function TaskDetailDrawer({
       message.error(error.message || '保存失败');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveTags = async () => {
+    if (!taskId) return;
+    setSavingTags(true);
+    try {
+      const res = await tagsAPI.addToTask(taskId, selectedTagIds);
+      if (res.code === 200) {
+        message.success('标签已更新');
+        fetchTaskDetail();
+      }
+    } catch (error: any) {
+      message.error(error.message || '标签更新失败');
+    } finally {
+      setSavingTags(false);
     }
   };
 
@@ -202,6 +235,38 @@ export default function TaskDetailDrawer({
           </Form.Item>
         </div>
 
+        {/* 标签编辑 */}
+        <Divider />
+        <div>
+          <span style={{ fontWeight: 500, marginBottom: 8, display: 'block' }}>标签</span>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Select
+              mode="multiple"
+              placeholder="选择标签"
+              value={selectedTagIds}
+              onChange={setSelectedTagIds}
+              style={{ width: '100%' }}
+              optionLabelProp="label"
+            >
+              {projectTags.map((tag) => (
+                <Select.Option key={tag.id} value={tag.id} label={tag.name}>
+                  <Tag color={tag.color} style={{ margin: 0 }}>{tag.name}</Tag>
+                </Select.Option>
+              ))}
+            </Select>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              onClick={handleSaveTags}
+              loading={savingTags}
+              icon={<PlusOutlined />}
+            >
+              保存标签
+            </Button>
+          </Space>
+        </div>
+
         {taskDetail?.children && taskDetail.children.length > 0 && (
           <>
             <Divider />
@@ -219,22 +284,6 @@ export default function TaskDetailDrawer({
                 </Descriptions.Item>
               ))}
             </Descriptions>
-          </>
-        )}
-
-        {taskDetail?.tags && taskDetail.tags.length > 0 && (
-          <>
-            <Divider />
-            <div>
-              <span style={{ fontWeight: 500, marginBottom: 8, display: 'block' }}>标签</span>
-              <Space wrap>
-                {taskDetail.tags.map((tag: any) => (
-                  <Tag key={tag.id} color={tag.color}>
-                    {tag.name}
-                  </Tag>
-                ))}
-              </Space>
-            </div>
           </>
         )}
       </Form>

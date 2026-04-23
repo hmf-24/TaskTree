@@ -37,6 +37,7 @@ export default function DependencyGraph({ tasks, dependencies, onTaskClick }: De
 
     // 使用Dagre进行自动布局
     const computeLayout = () => {
+      const taskMap = new Map<number, { x: number; y: number; width: number; height: number }>();
       const nodeMap = new Map<number, { x: number; y: number; width: number; height: number }>();
       const levels = new Map<number, number>();
       const queue: number[] = [];

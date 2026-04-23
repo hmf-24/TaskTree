@@ -49,10 +49,10 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
-  sortableKeyboardCoordinates,
 } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Helmet } from 'react-helmet-async';
 import { projectsAPI, tasksAPI } from '../../api';
 import {
   STATUS_COLORS,
@@ -280,7 +280,7 @@ function SortableTaskItem({
             </Dropdown>
           </Space>
         </div>
-        {task.children && task.children.length > 0 && (
+        {task.children && task.children.length > 0 && expanded && (
           <div className="mt-2 border-l-2 border-gray-200 pl-2">
             <SortableContext
               items={task.children.map((c) => String(c.id))}
@@ -298,6 +298,8 @@ function SortableTaskItem({
                   onSelect={onSelect}
                   selectedId={selectedId}
                   depth={depth + 1}
+                  expanded={true}
+                  onToggleExpand={onToggleExpand}
                 />
               ))}
             </SortableContext>
@@ -510,6 +512,7 @@ export default function ProjectDetail() {
     setEditingTask(task);
     form.setFieldsValue({
       name: task.name,
+      description: task.description || '',
       status: task.status,
       priority: task.priority,
       progress: task.progress,
@@ -739,6 +742,7 @@ export default function ProjectDetail() {
 
   return (
     <div className="p-6">
+      <Helmet><title>{project?.name || '项目详情'} - TaskTree</title></Helmet>
       <div className="flex items-center gap-4 mb-6">
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
           返回
@@ -824,6 +828,7 @@ export default function ProjectDetail() {
                   onOpenDetail={handleOpenDetail}
                   onSelect={handleSelectTask}
                   selectedId={selectedTaskId}
+                  expanded={!expandedIds.has(task.id)}
                   onToggleExpand={handleToggleExpand}
                 />
               ))}
@@ -931,6 +936,14 @@ export default function ProjectDetail() {
           <Form.Item name="due_date" label="截止日期">
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
+          <Space style={{ width: '100%' }}>
+            <Form.Item name="start_date" label="开始日期">
+              <DatePicker style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="estimated_time" label="预计工时(分钟)">
+              <Input type="number" min={0} placeholder="分钟" style={{ width: 120 }} />
+            </Form.Item>
+          </Space>
         </Form>
       </Modal>
 
@@ -975,6 +988,73 @@ export default function ProjectDetail() {
 }
 
 // ========== 看板视图组件 ==========
+
+// 可拖拽的看板卡片
+function DraggableKanbanCard({
+  task,
+  onStatusChange,
+  onOpenDetail,
+  colKey,
+}: {
+  task: Task;
+  onStatusChange: (task: Task, newStatus: string) => void;
+  onOpenDetail: (task: Task) => void;
+  colKey: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
+    id: `kanban-${task.id}`,
+    data: { type: 'kanban-card', task, status: task.status },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+    cursor: 'grab',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <Card
+        size="small"
+        hoverable
+        onClick={() => onOpenDetail(task)}
+        style={{ cursor: 'pointer' }}
+      >
+        <div style={{ marginBottom: 8 }}>
+          <span className="font-medium">{task.name}</span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>
+            {PRIORITY_LABELS[task.priority]}
+          </Tag>
+          <Progress type="circle" percent={task.progress} size={24} />
+        </div>
+        {colKey !== 'completed' && colKey !== 'cancelled' && (
+          <div style={{ marginTop: 8 }}>
+            <Button
+              size="small"
+              type="link"
+              style={{ padding: 0 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusChange(task, STATUS_FLOW[task.status]);
+              }}
+            >
+              → {STATUS_LABELS[STATUS_FLOW[task.status]]}
+            </Button>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function KanbanView({
   tasks,
   onStatusChange,
@@ -1001,17 +1081,31 @@ function KanbanView({
     { key: 'cancelled', title: '已取消', color: '#ff4d4f' },
   ];
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
   // 拖拽处理 - 列之间移动
-  const handleDragEnd = async (event: { active: any; over: any }) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
 
-    const task = flatTasks.find(t => t.id === Number(active.id));
-    const targetStatus = over.id;
+    const activeData = active.data.current as { task?: Task };
+    const overData = over.data.current as { type?: string; status?: string; task?: Task };
+    const draggedTask = activeData?.task;
+    if (!draggedTask) return;
 
-    if (task && task.status !== targetStatus) {
+    // 判断目标状态：如果拖到列上，取列的 status；如果拖到卡片上，取卡片的 status
+    let targetStatus: string | undefined;
+    if (overData?.type === 'kanban-column') {
+      targetStatus = overData.status;
+    } else if (overData?.type === 'kanban-card' && overData.task) {
+      targetStatus = overData.task.status;
+    }
+
+    if (targetStatus && draggedTask.status !== targetStatus) {
       try {
-        await onStatusChange(task, targetStatus);
+        await onStatusChange(draggedTask, targetStatus);
       } catch (error) {
         // 失败不处理
       }
@@ -1019,84 +1113,75 @@ function KanbanView({
   };
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div
         style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 16 }}
       >
         {columns.map((col) => {
           const colTasks = flatTasks.filter((t) => t.status === col.key);
+          const itemIds = colTasks.map(t => `kanban-${t.id}`);
           return (
-            <div
-              key={col.key}
-              id={col.key}
-              style={{ background: '#fafafa', borderRadius: 8, padding: 12, minHeight: 300 }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginBottom: 12,
-                  fontWeight: 600,
-                }}
-              >
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
-                <span>{col.title}</span>
-                <Tag style={{ margin: 0 }}>{colTasks.length}</Tag>
-              </div>
-              <SortableContext items={colTasks.map(t => String(t.id))} strategy={verticalListSortingStrategy}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <KanbanColumn key={col.key} colKey={col.key} color={col.color} title={col.title} count={colTasks.length}>
+              <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 60 }}>
                   {colTasks.map((task) => (
-                    <Card
+                    <DraggableKanbanCard
                       key={task.id}
-                      id={task.id}
-                      size="small"
-                      hoverable
-                      onClick={() => onOpenDetail(task)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <div style={{ marginBottom: 8 }}>
-                        <span className="font-medium">{task.name}</span>
-                      </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>
-                          {PRIORITY_LABELS[task.priority]}
-                        </Tag>
-                        <Progress type="circle" percent={task.progress} size={24} />
-                      </div>
-                      {col.key !== 'completed' && col.key !== 'cancelled' && (
-                        <div style={{ marginTop: 8 }}>
-                          <Button
-                            size="small"
-                            type="link"
-                            style={{ padding: 0 }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onStatusChange(task, STATUS_FLOW[task.status]);
-                            }}
-                          >
-                            → {STATUS_LABELS[STATUS_FLOW[task.status]]}
-                          </Button>
-                        </div>
-                      )}
-                    </Card>
+                      task={task}
+                      onStatusChange={onStatusChange}
+                      onOpenDetail={onOpenDetail}
+                      colKey={col.key}
+                    />
                   ))}
                   {colTasks.length === 0 && (
                     <div style={{ textAlign: 'center', color: '#bfbfbf', padding: 24 }}>暂无任务</div>
                   )}
                 </div>
               </SortableContext>
-            </div>
+            </KanbanColumn>
           );
         })}
       </div>
     </DndContext>
+  );
+}
+
+// 看板列（droppable）
+function KanbanColumn({ colKey, color, title, count, children }: {
+  colKey: string; color: string; title: string; count: number; children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useSortable({
+    id: `column-${colKey}`,
+    data: { type: 'kanban-column', status: colKey },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        background: isOver ? '#e6f7ff' : '#fafafa',
+        borderRadius: 8,
+        padding: 12,
+        minHeight: 300,
+        transition: 'background 0.2s',
+        border: isOver ? '2px dashed #1890ff' : '2px solid transparent',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 12,
+          fontWeight: 600,
+        }}
+      >
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+        <span>{title}</span>
+        <Tag style={{ margin: 0 }}>{count}</Tag>
+      </div>
+      {children}
+    </div>
   );
 }
 
