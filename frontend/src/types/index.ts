@@ -98,3 +98,37 @@ export interface PaginatedData<T = any> {
   page: number;
   page_size: number;
 }
+
+// ========== AI 对话类型 ==========
+export interface Conversation {
+  id: number;
+  user_id: number;
+  project_id: number;
+  task_id?: number;
+  conversation_type: 'create' | 'analyze' | 'modify' | 'plan';
+  title?: string;
+  messages: Message[];
+  context_data?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  actions?: Action[];
+}
+
+export interface Action {
+  type: 'apply_modification' | 'create_tasks' | 'view_analysis';
+  label: string;
+  data: any;
+}
+
+export const CONVERSATION_TYPE_LABELS: Record<string, string> = {
+  create: '任务创建',
+  analyze: '任务分析',
+  modify: '任务修改',
+  plan: '项目规划',
+};

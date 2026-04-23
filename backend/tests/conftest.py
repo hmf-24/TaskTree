@@ -109,3 +109,10 @@ async def auth_headers2(test_user2: User):
     """返回第二个用户的认证请求头。"""
     token = create_access_token({"sub": str(test_user2.id), "email": test_user2.email})
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def test_token(test_user: User):
+    """返回测试用户的 JWT Token。"""
+    token = create_access_token({"sub": str(test_user.id), "email": test_user.email})
+    return token

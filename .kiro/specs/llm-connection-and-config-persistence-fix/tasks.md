@@ -1,0 +1,101 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Provider Name Mismatch and Config Persistence
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bugs exist
+  - **Scoped PBT Approach**: For deterministic bugs, scope the property to the concrete failing case(s) to ensure reproducibility
+  - Test Bug #1: Create `LLMService(provider="minimax")` and call `test_connection()` - should fail with "Unknown provider: minimax" on unfixed code
+  - Test Bug #1: Verify default parameter `LLMService()` creates instance with `provider="minmax"` (typo) on unfixed code
+  - Test Bug #2: Save analysis_config with all toggles set to false, reload settings, verify toggles are false - should fail on unfixed code (toggles reset to defaults)
+  - Test Bug #2: Save analysis_config with mixed toggle states, reload, verify exact match - should fail on unfixed code
+  - The test assertions should match the Expected Behavior Properties from design:
+    - Property 1: Provider name matching should succeed for "minimax"
+    - Property 2: Analysis config toggles should persist after save/reload
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bugs exist)
+  - Document counterexamples found to understand root cause
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Other Providers and Settings Fields
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs:
+    - Test provider="openai" with valid credentials - observe connection behavior
+    - Test provider="anthropic" with valid credentials - observe connection behavior
+    - Test saving dingtalk_webhook, llm_api_key, daily_limit - observe persistence behavior
+    - Test other Settings tabs (profile, password) - observe functionality
+  - Write property-based tests capturing observed behavior patterns from Preservation Requirements:
+    - Property: For all providers NOT in ("minimax", "minmax"), connection behavior is unchanged
+    - Property: For all settings updates NOT involving analysis_config, persistence behavior is unchanged
+    - Property: LLM analysis methods (analyze_tasks, etc.) continue functioning with corrected provider logic
+  - Property-based testing generates many test cases for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 3. Fix for LLM connection and config persistence bugs
+
+  - [x] 3.1 Fix Bug #1: Provider name mismatch in LLMService
+    - Open `backend/app/services/llm_service.py`
+    - Fix the default parameter typo in `__init__`: change `provider: str = "minmax"` to `provider: str = "minimax"`
+    - Ensure `_call_api` method handles both "minimax" and "minmax" for backward compatibility
+    - Verify provider matching logic is case-insensitive or handles variations consistently
+    - Update PROVIDERS dictionary to use "minimax" as canonical key
+    - _Bug_Condition: isBugCondition_ProviderMismatch(input) where input.provider = "minimax" AND backend_provider_check(input.provider) = false_
+    - _Expected_Behavior: test_connection'(X).success = true AND test_connection'(X).error NOT CONTAINS "Unknown provider" for all X where isBugCondition_ProviderMismatch(X)_
+    - _Preservation: For all providers NOT in ("minimax", "minmax"), connection behavior must remain unchanged (Property 3)_
+    - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.3_
+
+  - [x] 3.2 Fix Bug #2: Analysis config persistence in Settings component
+    - Open `frontend/src/pages/Settings/Settings.tsx`
+    - Review the `useEffect` that loads reminder settings - verify `analysisConfig` state is properly updated from API response
+    - Ensure the form uses controlled components or proper form field names for analysis config toggles
+    - Instead of using nested paths like `analysis_config.overdue`, use flat form field names and sync with `analysisConfig` state
+    - Verify `handleSaveReminder` includes `analysisConfig` in the API call payload
+    - Add defensive null checks for cases where `analysis_config` is null/undefined in API response
+    - Test the synchronization between `analysisConfig` state and form values on load and save
+    - _Bug_Condition: isBugCondition_ConfigPersistence(input) where input.analysis_config IS NOT NULL AND loaded_config ≠ saved_config after refresh_
+    - _Expected_Behavior: loaded_result.analysis_config = X.analysis_config for all X where isBugCondition_ConfigPersistence(X)_
+    - _Preservation: For all settings updates NOT involving analysis_config, persistence behavior must remain unchanged (Property 4)_
+    - _Requirements: 1.4, 1.5, 2.4, 2.5, 3.2, 3.4, 3.5_
+
+  - [x] 3.3 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Provider Matching and Config Persistence
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1:
+      - Test Bug #1: `LLMService(provider="minimax").test_connection()` should succeed
+      - Test Bug #1: `LLMService()` should have `provider="minimax"` (typo fixed)
+      - Test Bug #2: Save and reload analysis_config with all toggles false - should persist correctly
+      - Test Bug #2: Save and reload analysis_config with mixed states - should match exactly
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bugs are fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+  - [x] 3.4 Verify preservation tests still pass
+    - **Property 2: Preservation** - Other Providers and Settings Fields
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2:
+      - Test other providers (openai, anthropic, custom) still work correctly
+      - Test other settings fields (webhook, API key, daily_limit) still persist correctly
+      - Test LLM analysis methods still function correctly
+      - Test other Settings tabs still work normally
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run all bug condition tests - verify they pass (bugs are fixed)
+  - Run all preservation tests - verify they pass (no regressions)
+  - Manually test the full user flow:
+    - Select "Minimax" provider, enter credentials, click "Test Connection" - should succeed
+    - Toggle analysis dimension switches, save, refresh page - toggles should persist
+    - Test other providers (OpenAI, Anthropic) - should work correctly
+    - Test other settings fields - should persist correctly
+  - If any tests fail, investigate and fix before proceeding
+  - Ask the user if questions arise or if additional testing is needed

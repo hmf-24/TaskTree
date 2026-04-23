@@ -264,3 +264,48 @@ class SchedulerState(Base):
     key = Column(String(50), unique=True, nullable=False, index=True, comment="状态键")
     value = Column(Text, comment="状态值(JSON)")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AIConversation(Base):
+    """AI 对话表 - 存储用户与 AI 的多轮对话历史"""
+    __tablename__ = 'ai_conversations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True, comment="用户 ID")
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True, comment="项目 ID")
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='SET NULL'), index=True, comment="任务 ID (可选,修改模式时使用)")
+    conversation_type = Column(String(20), nullable=False, comment="对话类型: create/analyze/modify/plan")
+    title = Column(String(255), comment="对话标题")
+    messages = Column(Text, nullable=False, comment="消息列表 (JSON 格式)")
+    context_data = Column(Text, comment="上下文数据 (JSON 格式)")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # 关联关系
+    user = relationship('User', backref='ai_conversations')
+    project = relationship('Project', backref='ai_conversations')
+    task = relationship('Task', backref='ai_conversations')
+
+    @property
+    def messages_list(self) -> list:
+        """获取消息列表"""
+        import json
+        return json.loads(self.messages) if self.messages else []
+
+    @messages_list.setter
+    def messages_list(self, value: list):
+        """设置消息列表"""
+        import json
+        self.messages = json.dumps(value, ensure_ascii=False)
+
+    @property
+    def context_dict(self) -> dict:
+        """获取上下文数据"""
+        import json
+        return json.loads(self.context_data) if self.context_data else {}
+
+    @context_dict.setter
+    def context_dict(self, value: dict):
+        """设置上下文数据"""
+        import json
+        self.context_data = json.dumps(value, ensure_ascii=False)

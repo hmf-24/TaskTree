@@ -397,9 +397,107 @@ class PaginatedResponse(BaseModel):
 
 
 class MessageResponse(BaseModel):
+    """通用消息响应"""
     code: int = 200
     message: str = "success"
     data: Optional[Any] = None
+
+
+# ========== LLM 智能创建任务相关 ==========
+
+class AIChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ClarifyTaskRequest(BaseModel):
+    project_id: int
+    messages: list[AIChatMessage]
+
+
+class DecomposeTaskRequest(BaseModel):
+    project_id: int
+    requirement: str
+
+
+class SubTaskItem(BaseModel):
+    name: str
+    description: Optional[str] = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+    estimated_time: Optional[int] = None
+    start_date: Optional[str] = None
+    due_date: Optional[str] = None
+
+
+class TaskWithSubtasksCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+    parent_id: Optional[int] = None
+    subtasks: list[SubTaskItem] = []
+
+
+# ========== AI 对话记忆相关 ==========
+
+class MessageSchema(BaseModel):
+    """消息 Schema"""
+    role: str = Field(..., description="角色: user/assistant")
+    content: str = Field(..., description="消息内容")
+    timestamp: str = Field(..., description="时间戳")
+    actions: Optional[list[dict[str, Any]]] = Field(None, description="可执行操作")
+
+
+class ConversationCreate(BaseModel):
+    """创建对话请求"""
+    project_id: int = Field(..., description="项目 ID")
+    conversation_type: str = Field(..., description="对话类型: create/analyze/modify/plan")
+    task_id: Optional[int] = Field(None, description="任务 ID (修改模式)")
+    initial_message: Optional[str] = Field(None, description="初始消息")
+
+
+class ConversationResponse(BaseModel):
+    """对话响应"""
+    id: int
+    user_id: int
+    project_id: int
+    task_id: Optional[int]
+    conversation_type: str
+    title: Optional[str]
+    messages: list[MessageSchema]
+    context_data: Optional[dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MessageCreate(BaseModel):
+    """发送消息请求"""
+    content: str = Field(..., description="消息内容")
+
+
+class AIMessageResponse(BaseModel):
+    """AI 对话消息响应"""
+    reply: str = Field(..., description="AI 回复")
+    conversation_id: int = Field(..., description="对话 ID")
+    message_count: int = Field(..., description="消息总数")
+    actions: Optional[list[dict[str, Any]]] = Field(None, description="可执行操作")
+
+
+class AnalyzeRequest(BaseModel):
+    """任务分析请求"""
+    focus_areas: Optional[list[str]] = Field(None, description="关注领域")
+
+
+class ModifyRequest(BaseModel):
+    """任务修改请求"""
+    modification: dict[str, Any] = Field(..., description="修改操作")
+
+
+class PlanRequest(BaseModel):
+    """项目规划请求"""
+    planning_goal: Optional[str] = Field(None, description="规划目标")
 
 
 # 更新前向引用

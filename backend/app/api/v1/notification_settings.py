@@ -6,6 +6,7 @@ TaskTree 智能提醒设置接口
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -58,7 +59,7 @@ DEFAULT_RULES = [
 ]
 
 
-@router.get("/settings", response_model=UserNotificationSettingsResponse)
+@router.get("/settings", response_model=MessageResponse)
 async def get_notification_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -73,7 +74,7 @@ async def get_notification_settings(
 
     if not settings:
         # 返回默认设置
-        return UserNotificationSettingsResponse(
+        data = UserNotificationSettingsResponse(
             id=0,
             user_id=current_user.id,
             dingtalk_webhook=None,
@@ -87,6 +88,7 @@ async def get_notification_settings(
             enabled=True,
             daily_limit=5
         )
+        return MessageResponse(data=data)
 
     # 解析 rules JSON
     rules = json.loads(settings.rules) if settings.rules else DEFAULT_RULES
@@ -97,7 +99,7 @@ async def get_notification_settings(
     # 解析 analysis_config JSON
     analysis_config = json.loads(settings.analysis_config) if settings.analysis_config else None
 
-    return UserNotificationSettingsResponse(
+    data = UserNotificationSettingsResponse(
         id=settings.id,
         user_id=settings.user_id,
         dingtalk_webhook=settings.dingtalk_webhook,
@@ -111,6 +113,7 @@ async def get_notification_settings(
         enabled=settings.enabled,
         daily_limit=settings.daily_limit
     )
+    return MessageResponse(data=data)
 
 
 @router.post("/settings", response_model=MessageResponse)
@@ -328,23 +331,26 @@ async def get_notification_stats(
     })
 
 
+class TestConnectionRequest(BaseModel):
+    provider: str
+    api_key: str
+    model: str
+    group_id: Optional[str] = None
+
 @router.post("/test-connection", response_model=MessageResponse)
 async def test_llm_connection(
-    provider: str,
-    api_key: str,
-    model: str,
-    group_id: str = None,
+    request: TestConnectionRequest,
     current_user: User = Depends(get_current_user),
 ):
     """测试大模型连接是否正常"""
     from app.services.llm_service import LLMService
 
-    if not api_key:
+    if not request.api_key:
         return MessageResponse(code=400, message="API Key 不能为空")
-    if not model:
+    if not request.model:
         return MessageResponse(code=400, message="模型名称不能为空")
 
-    llm = LLMService(provider=provider, api_key=api_key, model=model, group_id=group_id)
+    llm = LLMService(provider=request.provider, api_key=request.api_key, model=request.model, group_id=request.group_id)
 
     try:
         result = await llm.test_connection()

@@ -38,6 +38,7 @@ import {
   BarChartOutlined,
   PlusSquareOutlined,
   MinusSquareOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import {
   DndContext,
@@ -61,12 +62,14 @@ import {
   PRIORITY_LABELS,
   TASK_STATUS,
 } from '../../constants';
+import AITaskCreatorModal from '../../components/task/AITaskCreatorModal';
 import TaskDetailDrawer from '../../components/task/TaskDetailDrawer';
 import TagManager from '../../components/tag/TagManager';
 import ExportModal from '../../components/export/ExportModal';
 import ImportModal from '../../components/export/ImportModal';
 import GanttView from '../../components/views/GanttView';
 import DependencyGraph from '../../components/dependency/DependencyGraph';
+import AIAssistantPanel from '../../components/ai/AIAssistantPanel';
 import type { Task, Dependency } from '../../types';
 
 // 状态图标映射
@@ -317,6 +320,7 @@ export default function ProjectDetail() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [taskModalVisible, setTaskModalVisible] = useState(false);
+  const [aiModalVisible, setAiModalVisible] = useState(false);
   const [parentTaskId, setParentTaskId] = useState<number | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form] = Form.useForm();
@@ -334,6 +338,10 @@ export default function ProjectDetail() {
   // 导出/导入
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+
+  // AI 助手面板状态
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiMode, setAiMode] = useState<'analyze' | 'plan'>('analyze');
 
   // 选中任务处理
   const handleSelectTask = (task: Task, e?: React.MouseEvent) => {
@@ -757,6 +765,24 @@ export default function ProjectDetail() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
             添加任务
           </Button>
+          <Button 
+            type="primary" 
+            style={{ background: '#722ed1', borderColor: '#722ed1' }} 
+            onClick={() => setAiModalVisible(true)}
+          >
+            ✨ AI 智能创建
+          </Button>
+          <Button
+            type="primary"
+            icon={<RobotOutlined />}
+            style={{ background: '#52c41a', borderColor: '#52c41a' }}
+            onClick={() => {
+              setAiMode('analyze');
+              setAiPanelOpen(true);
+            }}
+          >
+            AI 分析
+          </Button>
           {selectedIds.size > 0 && (
             <>
               <Button onClick={() => {
@@ -978,6 +1004,31 @@ export default function ProjectDetail() {
         projectId={Number(id)}
         open={importOpen}
         onClose={() => setImportOpen(false)}
+        onSuccess={() => {
+          fetchTasks();
+          fetchProject();
+        }}
+      />
+
+      {/* AI智能任务创建弹窗 */}
+      <AITaskCreatorModal
+        projectId={Number(id)}
+        parentId={parentTaskId}
+        open={aiModalVisible}
+        onCancel={() => setAiModalVisible(false)}
+        onSuccess={() => {
+          setAiModalVisible(false);
+          fetchTasks();
+          fetchProject();
+        }}
+      />
+
+      {/* AI 助手面板 */}
+      <AIAssistantPanel
+        projectId={Number(id)}
+        mode={aiMode}
+        open={aiPanelOpen}
+        onClose={() => setAiPanelOpen(false)}
         onSuccess={() => {
           fetchTasks();
           fetchProject();

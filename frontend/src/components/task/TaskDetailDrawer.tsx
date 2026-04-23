@@ -13,12 +13,13 @@ import {
   Descriptions,
   message,
 } from 'antd';
-import { SaveOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
+import { SaveOutlined, CloseOutlined, PlusOutlined, RobotOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { tasksAPI, tagsAPI } from '../../api';
 import { STATUS_LABELS, PRIORITY_LABELS, STATUS_COLORS, PRIORITY_COLORS } from '../../constants';
 import type { Task, Tag as TagType } from '../../types';
 import CommentList from '../comment/CommentList';
+import AIAssistantPanel from '../ai/AIAssistantPanel';
 
 interface TaskDetailDrawerProps {
   taskId: number | null;
@@ -40,6 +41,9 @@ export default function TaskDetailDrawer({
   const [projectTags, setProjectTags] = useState<TagType[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [savingTags, setSavingTags] = useState(false);
+
+  // AI 助手面板状态
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   useEffect(() => {
     if (taskId && open) {
@@ -169,6 +173,13 @@ export default function TaskDetailDrawer({
           <Button onClick={onClose} icon={<CloseOutlined />}>
             取消
           </Button>
+          <Button
+            icon={<RobotOutlined />}
+            onClick={() => setAiPanelOpen(true)}
+            style={{ color: '#52c41a', borderColor: '#52c41a' }}
+          >
+            AI 修改
+          </Button>
           <Button type="primary" onClick={handleSave} loading={saving} icon={<SaveOutlined />}>
             保存
           </Button>
@@ -295,6 +306,21 @@ export default function TaskDetailDrawer({
           <div style={{ fontWeight: 600, marginBottom: 12 }}>评论</div>
           <CommentList taskId={taskId} />
         </>
+      )}
+
+      {/* AI 助手面板 */}
+      {taskId && taskDetail && (
+        <AIAssistantPanel
+          projectId={taskDetail.project_id}
+          mode="modify"
+          taskId={taskId}
+          open={aiPanelOpen}
+          onClose={() => setAiPanelOpen(false)}
+          onSuccess={() => {
+            fetchTaskDetail();
+            onUpdate();
+          }}
+        />
       )}
     </Drawer>
   );

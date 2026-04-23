@@ -35,7 +35,7 @@ class LLMService:
 
     def __init__(
         self,
-        provider: str = "minmax",
+        provider: str = "minimax",
         api_key: str = None,
         model: str = None,
         group_id: str = None
@@ -198,6 +198,129 @@ JSON：{{
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def chat(self, messages: list, temperature: float = 0.7, max_tokens: int = 2000) -> str:
+        """
+        通用对话接口，支持多轮对话
+        
+        Args:
+            messages: 对话历史，格式为 [{"role": "system/user/assistant", "content": "..."}]
+            temperature: 温度参数，控制随机性 (0-1)
+            max_tokens: 最大生成 token 数
+            
+        Returns:
+            str: AI 的回复内容
+        """
+        p = self.provider.lower()
+        
+        if p in ("minimax", "minmax"):
+            return await self._chat_minimax(messages, temperature, max_tokens)
+        elif p == "openai":
+            return await self._chat_openai(messages, temperature, max_tokens)
+        elif p == "anthropic":
+            return await self._chat_anthropic(messages, temperature, max_tokens)
+        else:
+            raise Exception(f"Unknown provider: {self.provider}")
+
+    async def _chat_minimax(self, messages: list, temperature: float, max_tokens: int) -> str:
+        """Minimax 对话接口"""
+        url = "https://api.minimaxi.com/anthropic/v1/messages"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        
+        # 提取 system 消息
+        system_content = ""
+        chat_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_content = msg["content"]
+            else:
+                chat_messages.append({"role": msg["role"], "content": msg["content"]})
+        
+        payload = {
+            "model": self.model or "MiniMax-M2.7",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": chat_messages
+        }
+        
+        if system_content:
+            payload["system"] = system_content
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=60.0
+            )
+            if response.status_code != 200:
+                raise Exception(f"API error: {response.status_code} - {response.text}")
+            data = response.json()
+            # Minimax 返回的 content 数组中可能包含 thinking 和 text 类型
+            # 需要找到 type="text" 的内容
+            content_list = data.get("content", [])
+            for item in content_list:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    return item.get("text", "")
+            return ""
+
+    async def _chat_openai(self, messages: list, temperature: float, max_tokens: int) -> str:
+        """OpenAI 对话接口"""
+        url = "https://api.openai.com/v1/chat/completions"
+        payload = {
+            "model": self.model or "gpt-4o-mini",
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                json=payload,
+                timeout=60.0
+            )
+            if response.status_code != 200:
+                raise Exception(f"API error: {response.status_code} - {response.text}")
+            return response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+
+    async def _chat_anthropic(self, messages: list, temperature: float, max_tokens: int) -> str:
+        """Anthropic 对话接口"""
+        url = "https://api.anthropic.com/v1/messages"
+        
+        # 提取 system 消息
+        system_content = ""
+        chat_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_content = msg["content"]
+            else:
+                chat_messages.append({"role": msg["role"], "content": msg["content"]})
+        
+        payload = {
+            "model": self.model or "claude-sonnet-4-20250514",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": chat_messages
+        }
+        
+        if system_content:
+            payload["system"] = system_content
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                headers={"x-api-key": self.api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                json=payload,
+                timeout=60.0
+            )
+            if response.status_code != 200:
+                raise Exception(f"API error: {response.status_code} - {response.text}")
+            return response.json().get("content", [{}])[0].get("text", "")
+
     async def parse_user_intent(self, text: str) -> dict:
         """解析用户自然语言输入的意图"""
         if not self.api_key:
@@ -289,7 +412,12 @@ JSON：{{
             if response.status_code != 200:
                 raise Exception(f"API error: {response.status_code} - {response.text}")
             data = response.json()
-            return data.get("content", [{}])[0].get("text", "")
+            # Minimax 返回的 content 数组中可能包含 thinking 和 text 类型
+            content_list = data.get("content", [])
+            for item in content_list:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    return item.get("text", "")
+            return ""
 
     async def _call_openai(self, prompt: str) -> str:
         url = "https://api.openai.com/v1/chat/completions"

@@ -13,6 +13,7 @@ import {
   Alert,
   Space,
   Select,
+  Checkbox,
 } from 'antd';
 import {
   UserOutlined,
@@ -259,45 +260,56 @@ export default function Settings() {
         <Card bordered={false}>
           <Alert message="智能提醒说明" description="开启智能提醒后，系统会定期使用大模型分析您的任务，并通过钉钉发送个性化提醒通知。" type="info" showIcon style={{ marginBottom: 24 }} />
           <Form form={reminderForm} layout="vertical" onFinish={handleSaveReminder} style={{ maxWidth: 600 }}>
-            <Divider orientation="left">基础设置</Divider>
-            <Form.Item label="启用智能提醒" name="enabled" valuePropName="checked"><Switch checkedChildren="已启用" unCheckedChildren="已禁用" /></Form.Item>
-            <Form.Item label="钉钉 Webhook 地址" name="dingtalk_webhook" tooltip="在钉钉群聊中添加机器人，获取Webhook地址并复制到这里"><Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" /></Form.Item>
-            <Form.Item label="钉钉密钥（可选）" name="dingtalk_secret" tooltip="开启机器人安全设置后需要填写密钥"><Input.Password placeholder="SEC开头的密钥（可选）" /></Form.Item>
+            <Form.Item label="启用智能提醒" name="enabled" valuePropName="checked">
+              <Switch checkedChildren="已启用" unCheckedChildren="已禁用" />
+            </Form.Item>
 
-            <Divider orientation="left">大模型配置</Divider>
-            <Form.Item label="大模型提供商" name="llm_provider" tooltip="选择要使用的大模型服务商">
-              <Select placeholder="选择提供商" onChange={() => { reminderForm.setFieldsValue({ llm_model: undefined }); setConnResult(null); }}>
-                {Object.entries(LLM_PROVIDERS).map(([key, value]) => <Select.Option key={key} value={key}>{value.name}</Select.Option>)}
-              </Select>
-            </Form.Item>
-            <Form.Item label="模型选择" name="llm_model" tooltip="选择或输入模型名称">
-              {isCustomProvider
-                ? <Input placeholder="请输入模型名称，如 MiniMax-M2.7" />
-                : <Select placeholder="选择模型" allowClear>{currentProvider.models.map((m: any) => <Select.Option key={m.value} value={m.value}>{m.label}</Select.Option>)}</Select>}
-            </Form.Item>
-            <Form.Item label="API Key" name="llm_api_key" tooltip="从对应平台获取API Key"><Input.Password placeholder={currentProvider.apiKeyPlaceholder} /></Form.Item>
-            {(watchedProvider === 'minimax' || isCustomProvider) && (
-              <Form.Item label="Group ID（可选）" name="llm_group_id" tooltip="从Minimax开放平台获取Group ID"><Input placeholder="输入Group ID（可选）" /></Form.Item>
+            {Form.useWatch('enabled', reminderForm) && (
+              <>
+                <Divider orientation="left">基础设置</Divider>
+                <Form.Item label="钉钉 Webhook 地址" name="dingtalk_webhook" tooltip="在钉钉群聊中添加机器人，获取Webhook地址并复制到这里"><Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" /></Form.Item>
+                <Form.Item label="钉钉密钥（可选）" name="dingtalk_secret" tooltip="开启机器人安全设置后需要填写密钥"><Input.Password placeholder="SEC开头的密钥（可选）" /></Form.Item>
+
+                <Divider orientation="left">大模型配置</Divider>
+                <Form.Item label="大模型提供商" name="llm_provider" tooltip="选择要使用的大模型服务商">
+                  <Select placeholder="选择提供商" onChange={() => { reminderForm.setFieldsValue({ llm_model: undefined }); setConnResult(null); }}>
+                    {Object.entries(LLM_PROVIDERS).map(([key, value]) => <Select.Option key={key} value={key}>{value.name}</Select.Option>)}
+                  </Select>
+                </Form.Item>
+                <Form.Item label="模型选择" name="llm_model" tooltip="选择或输入模型名称">
+                  {isCustomProvider
+                    ? <Input placeholder="请输入模型名称，如 MiniMax-M2.7" />
+                    : <Select placeholder="选择模型" allowClear>{currentProvider.models.map((m: any) => <Select.Option key={m.value} value={m.value}>{m.label}</Select.Option>)}</Select>}
+                </Form.Item>
+                <Form.Item label="API Key" name="llm_api_key" tooltip="从对应平台获取API Key"><Input.Password placeholder={currentProvider.apiKeyPlaceholder} /></Form.Item>
+                {(watchedProvider === 'minimax' || isCustomProvider) && (
+                  <Form.Item label="Group ID（可选）" name="llm_group_id" tooltip="从Minimax开放平台获取Group ID"><Input placeholder="输入Group ID（可选）" /></Form.Item>
+                )}
+
+                {connResult && (
+                  <Alert message={connResult.success ? '连接成功' : '连接失败'} description={connResult.success ? `${connResult.msg}\n响应示例：${connResult.detail?.sample_output || ''}` : connResult.msg} type={connResult.success ? 'success' : 'error'} showIcon icon={connResult.success ? <CheckCircleOutlined /> : <CloseCircleOutlined />} style={{ marginBottom: 16 }} />
+                )}
+                <Form.Item>
+                  <Button onClick={handleTestConnection} loading={testingConn} icon={testingConn ? <LoadingOutlined /> : undefined}>{testingConn ? '测试中...' : '测试连通性'}</Button>
+                </Form.Item>
+
+                <Divider orientation="left">分析维度配置</Divider>
+                <Form.Item tooltip="您可以选择启用一项或多项分析维度。">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <Checkbox checked={analysisConfig.overdue} onChange={e => setAnalysisConfig({...analysisConfig, overdue: e.target.checked})}>逾期检测</Checkbox>
+                    <Checkbox checked={analysisConfig.progress_stalled} onChange={e => setAnalysisConfig({...analysisConfig, progress_stalled: e.target.checked})}>进度落后检测</Checkbox>
+                    <Checkbox checked={analysisConfig.dependency_unblocked} onChange={e => setAnalysisConfig({...analysisConfig, dependency_unblocked: e.target.checked})}>依赖解除检测</Checkbox>
+                    <Checkbox checked={analysisConfig.team_load} onChange={e => setAnalysisConfig({...analysisConfig, team_load: e.target.checked})}>团队负荷分析</Checkbox>
+                    <Checkbox checked={analysisConfig.risk_prediction} onChange={e => setAnalysisConfig({...analysisConfig, risk_prediction: e.target.checked})}>风险预测</Checkbox>
+                  </div>
+                </Form.Item>
+
+                <Divider orientation="left">高级设置</Divider>
+                <Form.Item label="每日提醒上限" name="daily_limit" tooltip="每天最多发送的提醒次数"><InputNumber min={1} max={20} defaultValue={5} style={{ width: 120 }} /></Form.Item>
+              </>
             )}
 
-            {connResult && (
-              <Alert message={connResult.success ? '连接成功' : '连接失败'} description={connResult.success ? `${connResult.msg}\n响应示例：${connResult.detail?.sample_output || ''}` : connResult.msg} type={connResult.success ? 'success' : 'error'} showIcon icon={connResult.success ? <CheckCircleOutlined /> : <CloseCircleOutlined />} style={{ marginBottom: 16 }} />
-            )}
-            <Form.Item>
-              <Button onClick={handleTestConnection} loading={testingConn} icon={testingConn ? <LoadingOutlined /> : undefined}>{testingConn ? '测试中...' : '测试连通性'}</Button>
-            </Form.Item>
-
-            <Divider orientation="left">分析维度配置</Divider>
-            <Form.Item label="逾期检测"><Switch checked={analysisConfig.overdue} onChange={v => setAnalysisConfig({...analysisConfig, overdue: v})} /></Form.Item>
-            <Form.Item label="进度落后检测"><Switch checked={analysisConfig.progress_stalled} onChange={v => setAnalysisConfig({...analysisConfig, progress_stalled: v})} /></Form.Item>
-            <Form.Item label="依赖解除检测"><Switch checked={analysisConfig.dependency_unblocked} onChange={v => setAnalysisConfig({...analysisConfig, dependency_unblocked: v})} /></Form.Item>
-            <Form.Item label="团队负荷分析"><Switch checked={analysisConfig.team_load} onChange={v => setAnalysisConfig({...analysisConfig, team_load: v})} /></Form.Item>
-            <Form.Item label="风险预测"><Switch checked={analysisConfig.risk_prediction} onChange={v => setAnalysisConfig({...analysisConfig, risk_prediction: v})} /></Form.Item>
-
-            <Divider orientation="left">高级设置</Divider>
-            <Form.Item label="每日提醒上限" name="daily_limit" tooltip="每天最多发送的提醒次数"><InputNumber min={1} max={20} defaultValue={5} style={{ width: 120 }} /></Form.Item>
-
-            <Form.Item><Space>
+            <Form.Item style={{ marginTop: 24 }}><Space>
               <Button type="primary" htmlType="submit" loading={loadingReminder} icon={<SaveOutlined />}>保存设置</Button>
               <Button onClick={handleTriggerReminder} loading={triggering}>立即提醒</Button>
               <Button onClick={() => handleLoadStats(7)} loading={loadingStats}>查看统计</Button>

@@ -20,7 +20,8 @@ from app.schemas import (
     TaskMoveRequest, TaskDeleteQuery, BatchTaskCreate,
     DependencyCreate, DependencyResponse, DependencyCheckResponse,
     TagCreate, TagUpdate, TagResponse, TaskTagsRequest,
-    CommentCreate, CommentResponse, MessageResponse
+    CommentCreate, CommentResponse, MessageResponse,
+    TaskWithSubtasksCreate
 )
 from app.api.v1.auth import get_current_user
 
@@ -500,6 +501,58 @@ async def batch_create_tasks(
         code=201,
         message=f"成功创建{len(tasks)}个任务",
         data={"count": len(tasks)}
+    )
+
+
+@router.post("/projects/{project_id}/tasks/with_subtasks", response_model=MessageResponse)
+async def create_task_with_subtasks(
+    project_id: int,
+    task_data: TaskWithSubtasksCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # 验证项目
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    # 创建父任务
+    parent_task = Task(
+        project_id=project_id,
+        parent_id=task_data.parent_id,
+        name=task_data.name,
+        description=task_data.description,
+        priority=task_data.priority
+    )
+    db.add(parent_task)
+    await db.commit()
+    await db.refresh(parent_task)
+
+    # 创建子任务
+    subtasks = []
+    for sub in task_data.subtasks:
+        subtask = Task(
+            project_id=project_id,
+            parent_id=parent_task.id,
+            name=sub.name,
+            description=sub.description,
+            priority=sub.priority,
+            estimated_time=sub.estimated_time,
+            start_date=sub.start_date,
+            due_date=sub.due_date
+        )
+        subtasks.append(subtask)
+    
+    if subtasks:
+        db.add_all(subtasks)
+        await db.commit()
+
+    return MessageResponse(
+        code=201,
+        message="成功创建父任务及子任务",
+        data={"parent_id": parent_task.id, "subtasks_count": len(subtasks)}
     )
 
 

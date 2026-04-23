@@ -80,6 +80,16 @@ export const tasksAPI = {
       estimated_time?: number;
     }
   ) => api.post(`/projects/${projectId}/tasks`, data),
+  createWithSubtasks: (
+    projectId: number,
+    data: {
+      name: string;
+      description?: string;
+      priority?: string;
+      parent_id?: number | null;
+      subtasks: { name: string; description?: string; priority?: string }[];
+    }
+  ) => api.post(`/projects/${projectId}/tasks/with_subtasks`, data),
   update: (
     id: number,
     data: Partial<{
@@ -166,6 +176,51 @@ export const reminderSettingsAPI = {
   // 新增功能
   trigger: () => api.post('/notifications/trigger'),
   getStats: (days?: number) => api.get('/notifications/stats', { params: { days } }),
-  testConnection: (params: { provider: string; api_key: string; model: string; group_id?: string }) =>
-    api.post('/notifications/test-connection', null, { params }),
+  testConnection: (data: { provider: string; api_key: string; model: string; group_id?: string }) =>
+    api.post('/notifications/test-connection', data, { timeout: 60000 }),
+};
+
+// LLM Tasks API
+export const llmTasksAPI = {
+  clarify: (data: { project_id: number; messages: { role: string; content: string }[] }) =>
+    api.post('/llm_tasks/clarify', data, { timeout: 60000 }),
+  decompose: (data: { project_id: number; requirement: string }) =>
+    api.post('/llm_tasks/decompose', data, { timeout: 60000 }),
+};
+
+// Conversations API
+export const conversationsAPI = {
+  // 创建对话
+  create: (data: {
+    project_id: number;
+    conversation_type: 'create' | 'analyze' | 'modify' | 'plan';
+    task_id?: number;
+    initial_message?: string;
+  }) => api.post('/conversations', data),
+
+  // 发送消息
+  sendMessage: (conversationId: number, data: { content: string }) =>
+    api.post(`/conversations/${conversationId}/messages`, data, { timeout: 60000 }),
+
+  // 获取对话列表
+  list: (params?: { project_id?: number; conversation_type?: string }) =>
+    api.get('/conversations', { params }),
+
+  // 获取对话详情
+  get: (conversationId: number) => api.get(`/conversations/${conversationId}`),
+
+  // 任务分析
+  analyze: (conversationId: number, data?: { focus_areas?: string[] }) =>
+    api.post(`/conversations/${conversationId}/analyze`, data, { timeout: 60000 }),
+
+  // 任务修改
+  modify: (conversationId: number, data: { modification: any }) =>
+    api.post(`/conversations/${conversationId}/modify`, data),
+
+  // 项目规划
+  plan: (conversationId: number, data?: { planning_goal?: string }) =>
+    api.post(`/conversations/${conversationId}/plan`, data, { timeout: 60000 }),
+
+  // 删除对话
+  delete: (conversationId: number) => api.delete(`/conversations/${conversationId}`),
 };
