@@ -48,7 +48,7 @@ async def get_db():
         async def handler(db: AsyncSession = Depends(get_db)):
             ...
     """
-    async with get_session_maker() as session:
+    async with get_session_maker()() as session:
         try:
             yield session
         except Exception:

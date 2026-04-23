@@ -83,6 +83,7 @@ async def get_notification_settings(
             llm_model=None,
             llm_group_id=None,
             rules=DEFAULT_RULES,
+            analysis_config={"overdue": True, "progress_stalled": True, "dependency_unblocked": True, "team_load": True, "risk_prediction": True},
             enabled=True,
             daily_limit=5
         )
@@ -92,6 +93,9 @@ async def get_notification_settings(
 
     # 解密 API Key
     api_key = decrypt_api_key(settings.llm_api_key_encrypted) if settings.llm_api_key_encrypted else None
+
+    # 解析 analysis_config JSON
+    analysis_config = json.loads(settings.analysis_config) if settings.analysis_config else None
 
     return UserNotificationSettingsResponse(
         id=settings.id,
@@ -103,6 +107,7 @@ async def get_notification_settings(
         llm_model=settings.llm_model,
         llm_group_id=settings.llm_group_id,
         rules=rules,
+        analysis_config=analysis_config,
         enabled=settings.enabled,
         daily_limit=settings.daily_limit
     )
@@ -140,6 +145,8 @@ async def create_or_update_settings(
             settings.llm_group_id = settings_data.llm_group_id
         if settings_data.rules is not None:
             settings.rules = rules_json
+        if settings_data.analysis_config is not None:
+            settings.analysis_config = json.dumps(settings_data.analysis_config, ensure_ascii=False)
         if settings_data.enabled is not None:
             settings.enabled = settings_data.enabled
         if settings_data.daily_limit is not None:
@@ -155,6 +162,7 @@ async def create_or_update_settings(
             llm_model=settings_data.llm_model,
             llm_group_id=settings_data.llm_group_id,
             rules=rules_json,
+            analysis_config=json.dumps(settings_data.analysis_config, ensure_ascii=False) if settings_data.analysis_config else None,
             enabled=settings_data.enabled,
             daily_limit=settings_data.daily_limit
         )
@@ -318,6 +326,42 @@ async def get_notification_stats(
         "daily_stats": daily_stats,
         "period_days": days
     })
+
+
+@router.post("/test-connection", response_model=MessageResponse)
+async def test_llm_connection(
+    provider: str,
+    api_key: str,
+    model: str,
+    group_id: str = None,
+    current_user: User = Depends(get_current_user),
+):
+    """测试大模型连接是否正常"""
+    from app.services.llm_service import LLMService
+
+    if not api_key:
+        return MessageResponse(code=400, message="API Key 不能为空")
+    if not model:
+        return MessageResponse(code=400, message="模型名称不能为空")
+
+    llm = LLMService(provider=provider, api_key=api_key, model=model, group_id=group_id)
+
+    try:
+        result = await llm.test_connection()
+        if result.get("success"):
+            return MessageResponse(
+                message="连接成功",
+                data={
+                    "success": True,
+                    "model": result.get("model"),
+                    "response_time_ms": result.get("response_time_ms"),
+                    "sample_output": result.get("sample_output", "")[:200],
+                }
+            )
+        else:
+            return MessageResponse(code=400, message=result.get("error", "连接失败"))
+    except Exception as e:
+        return MessageResponse(code=400, message=f"连接失败: {str(e)}")
 
 
 @router.post("/intent/parse", response_model=MessageResponse)

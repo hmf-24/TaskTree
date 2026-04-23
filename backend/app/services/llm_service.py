@@ -42,9 +42,8 @@ class LLMService:
     ):
         self.provider = provider
         self.api_key = api_key or os.getenv("LLM_API_KEY", "")
-        self.model = model or self.PROVIDERS.get(provider, {}).get("default_model")
+        self.model = model or "MiniMax-M2.7"
         self.group_id = group_id
-        self.base_url = "https://api.minimax.chat/v1"
 
     async def analyze_tasks(
         self,
@@ -182,6 +181,23 @@ JSON：{{
         except:
             return {"classifications": [], "tags": []}
 
+    async def test_connection(self) -> dict:
+        """测试大模型连通性，返回响应内容和耗时"""
+        import time
+        start = time.time()
+        try:
+            prompt = "请回复：ok，如果收到这条消息请在回复前加上当前时间。"
+            response = await self._call_api(prompt)
+            elapsed = int((time.time() - start) * 1000)
+            return {
+                "success": True,
+                "model": self.model,
+                "response_time_ms": elapsed,
+                "sample_output": response[:200] if response else "",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     async def parse_user_intent(self, text: str) -> dict:
         """解析用户自然语言输入的意图"""
         if not self.api_key:
@@ -240,37 +256,40 @@ JSON：{{
 
     async def _call_api(self, prompt: str) -> str:
         """调用大模型API"""
-        if self.provider == "minmax":
+        p = self.provider.lower()
+        # 兼容 minimax / minmax 两种写法
+        if p in ("minimax", "minmax"):
             return await self._call_minimax(prompt)
-        elif self.provider == "openai":
+        elif p == "openai":
             return await self._call_openai(prompt)
-        elif self.provider == "anthropic":
+        elif p == "anthropic":
             return await self._call_anthropic(prompt)
         raise Exception(f"Unknown provider: {self.provider}")
 
     async def _call_minimax(self, prompt: str) -> str:
-        url = f"{self.base_url}/text/chatcompletion_v2"
-        payload = {
-            "model": self.model or "abab6.5s-chat",
-            "messages": [
-                {"role": "system", "content": "你是一个专业的任务管理助手。"},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.3,
-            "max_tokens": 1500
+        url = "https://api.minimaxi.com/anthropic/v1/messages"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
         }
-        if self.group_id:
-            payload["group_id"] = self.group_id
+        payload = {
+            "model": self.model or "MiniMax-M2.7",
+            "max_tokens": 1500,
+            "system": "你是一个专业的任务管理助手。",
+            "messages": [{"role": "user", "content": prompt}]
+        }
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                headers=headers,
                 json=payload,
-                timeout=30.0
+                timeout=60.0
             )
             if response.status_code != 200:
-                raise Exception(f"API error: {response.status_code}")
-            return response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+                raise Exception(f"API error: {response.status_code} - {response.text}")
+            data = response.json()
+            return data.get("content", [{}])[0].get("text", "")
 
     async def _call_openai(self, prompt: str) -> str:
         url = "https://api.openai.com/v1/chat/completions"

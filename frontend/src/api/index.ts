@@ -166,6 +166,6 @@ export const reminderSettingsAPI = {
   // 新增功能
   trigger: () => api.post('/notifications/trigger'),
   getStats: (days?: number) => api.get('/notifications/stats', { params: { days } }),
-  parseIntent: (text: string) => api.post('/notifications/intent/parse', { text }),
-  autoClassify: (projectId: number) => api.post('/notifications/tasks/auto-classify', { project_id: projectId }),
+  testConnection: (params: { provider: string; api_key: string; model: string; group_id?: string }) =>
+    api.post('/notifications/test-connection', null, { params }),
 };

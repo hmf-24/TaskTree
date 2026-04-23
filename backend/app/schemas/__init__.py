@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, date
 from app.core.constants import TaskStatus, TaskPriority
 
 
@@ -134,9 +134,27 @@ class TaskBase(BaseModel):
     parent_id: Optional[int] = None
     assignee_id: Optional[int] = None
     priority: str = "medium"
-    start_date: Optional[str] = None
-    due_date: Optional[str] = None
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
     estimated_time: Optional[int] = None
+
+    @field_validator('start_date', 'due_date', mode='before')
+    @classmethod
+    def parse_date(cls, v):
+        if v is None or isinstance(v, date):
+            return v
+        # 支持 YYYY-MM-DD 和 YYYY/MM/DD 格式
+        s = str(v).strip()
+        if '/' in s:
+            return datetime.strptime(s, '%Y/%m/%d').date()
+        return datetime.strptime(s, '%Y-%m-%d').date()
+
+    @field_validator('priority', mode='before')
+    @classmethod
+    def normalize_priority(cls, v):
+        if v is None:
+            return 'medium'
+        return str(v).lower()
 
 
 class TaskCreate(TaskBase):
@@ -150,8 +168,8 @@ class TaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     priority: Optional[TaskPriority] = None
     progress: Optional[int] = Field(default=None, ge=0, le=100)
-    start_date: Optional[str] = None
-    due_date: Optional[str] = None
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
     estimated_time: Optional[int] = Field(default=None, ge=0)
     actual_time: Optional[int] = Field(default=None, ge=0)
 
@@ -175,6 +193,16 @@ class TaskUpdate(BaseModel):
             return TaskPriority(v.lower())
         except ValueError:
             raise ValueError(f'无效的优先级: {v}')
+
+    @field_validator('start_date', 'due_date', mode='before')
+    @classmethod
+    def parse_date(cls, v):
+        if v is None or isinstance(v, date):
+            return v
+        s = str(v).strip()
+        if '/' in s:
+            return datetime.strptime(s, '%Y/%m/%d').date()
+        return datetime.strptime(s, '%Y-%m-%d').date()
 
 
 class TaskResponse(TaskBase):
@@ -330,7 +358,7 @@ class UserNotificationSettingsBase(BaseModel):
     llm_group_id: Optional[str] = None  # Minmax Group ID
     # 分析维度配置
     analysis_config: Optional[dict] = None  # {"overdue": True, "progress_stalled": True, ...}
-    rules: Optional[list[ReminderRule]] = None
+    rules: Optional[Any] = None
     enabled: bool = True
     daily_limit: int = 5
 
