@@ -79,21 +79,28 @@ async def upload_attachment(
     - 保存文件到文件系统
     - 创建数据库记录
     """
+    # 添加日志以便调试
+    print(f"[DEBUG] Uploading file: {file.filename}, content_type: {file.content_type}")
+    
     # Step 1: 验证任务访问权限
     task = await get_task_with_access(task_id, db, current_user)
     
     # Step 2: 验证文件类型
     is_valid_type, type_message = validate_file_type(file.filename)
     if not is_valid_type:
+        print(f"[DEBUG] File type validation failed: {type_message}")
         raise HTTPException(status_code=400, detail=type_message)
     
     # Step 3: 读取文件内容以获取大小
     file_content = await file.read()
     file_size = len(file_content)
     
+    print(f"[DEBUG] File size: {file_size} bytes")
+    
     # Step 4: 验证文件大小
     is_valid_size, size_message = validate_file_size(file_size)
     if not is_valid_size:
+        print(f"[DEBUG] File size validation failed: {size_message}")
         raise HTTPException(status_code=400, detail=size_message)
     
     # Step 5: 生成唯一文件名

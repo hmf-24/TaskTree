@@ -98,7 +98,7 @@ export default function AttachmentList({ taskId, onUpdate }: AttachmentListProps
    * @param file 待上传的文件
    * @returns 是否通过验证
    */
-  const beforeUpload = (file: File): boolean => {
+  const beforeUpload = (file: File): boolean | Promise<File> => {
     // 验证文件类型
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     if (!fileExtension || !ALLOWED_FILE_EXTENSIONS.includes(fileExtension as any)) {
@@ -116,50 +116,44 @@ export default function AttachmentList({ taskId, onUpdate }: AttachmentListProps
   };
 
   /**
-   * 自定义上传逻辑
-   * @param options 上传选项
-   */
-  const customRequest: UploadProps['customRequest'] = async (options) => {
-    const { file, onSuccess, onError, onProgress } = options;
-
-    setUploading(true);
-
-    try {
-      // 模拟上传进度
-      onProgress?.({ percent: 30 });
-
-      // 调用上传 API
-      const res = await attachmentsAPI.upload(taskId, file as File);
-
-      onProgress?.({ percent: 100 });
-
-      if (res.code === 200) {
-        message.success('上传成功');
-        onSuccess?.(res.data);
-        
-        // 清空文件列表
-        setFileList([]);
-        
-        // 刷新附件列表
-        fetchAttachments();
-        onUpdate?.();
-      } else {
-        throw new Error(res.message || '上传失败');
-      }
-    } catch (error: any) {
-      message.error(error.message || '上传失败');
-      onError?.(error);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  /**
    * 文件列表变化处理
    * @param info 文件列表信息
    */
   const handleChange: UploadProps['onChange'] = (info) => {
     setFileList(info.fileList);
+    
+    if (info.file.status === 'uploading') {
+      setUploading(true);
+    }
+    
+    if (info.file.status === 'done') {
+      setUploading(false);
+      message.success('上传成功');
+      
+      // 清空文件列表
+      setFileList([]);
+      
+      // 刷新附件列表
+      fetchAttachments();
+      onUpdate?.();
+    } else if (info.file.status === 'error') {
+      setUploading(false);
+      // 尝试从不同的响应格式中提取错误信息
+      let errorMsg = '上传失败';
+      if (info.file.response) {
+        if (typeof info.file.response === 'string') {
+          errorMsg = info.file.response;
+        } else if (info.file.response.detail) {
+          errorMsg = info.file.response.detail;
+        } else if (info.file.response.message) {
+          errorMsg = info.file.response.message;
+        }
+      }
+      message.error(errorMsg);
+      
+      // 清空文件列表
+      setFileList([]);
+    }
   };
 
   return (
@@ -168,10 +162,17 @@ export default function AttachmentList({ taskId, onUpdate }: AttachmentListProps
       <Upload
         fileList={fileList}
         beforeUpload={beforeUpload}
-        customRequest={customRequest}
+        action={`/api/v1/tasktree/attachments/tasks/${taskId}/attachments`}
+        headers={{
+          Authorization: `Bearer ${useAuthStore.getState().token}`,
+        }}
         onChange={handleChange}
         maxCount={1}
         disabled={uploading}
+        onRemove={() => {
+          setFileList([]);
+          return true;
+        }}
       >
         <Button icon={<UploadOutlined />} loading={uploading} disabled={uploading}>
           {uploading ? '上传中...' : '上传附件'}
