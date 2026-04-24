@@ -19,7 +19,7 @@ from app.core.exceptions import (
     file_system_exception_handler,
     generic_exception_handler
 )
-from app.api.v1 import auth, projects, tasks, users, export, notifications, notification_settings, llm_tasks, conversations, attachments
+from app.api.v1 import auth, projects, tasks, users, export, notifications, notification_settings, llm_tasks, conversations, attachments, dingtalk
 
 
 @asynccontextmanager
@@ -64,6 +64,7 @@ app.include_router(notification_settings.router, prefix="/api/v1/tasktree", tags
 app.include_router(llm_tasks.router, prefix="/api/v1/tasktree", tags=["AI智能任务"])
 app.include_router(conversations.router, prefix="/api/v1/tasktree", tags=["AI对话"])
 app.include_router(attachments.router, prefix="/api/v1/tasktree", tags=["附件"])
+app.include_router(dingtalk.router, tags=["钉钉智能助手"])
 
 @app.get("/")
 def root():

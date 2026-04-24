@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from app.core.database import get_db
 from app.models import User, Task, TaskAttachment, Project, ProjectMember
-from app.schemas import AttachmentResponse, AttachmentListResponse
+from app.schemas import AttachmentResponse, AttachmentListResponse, MessageResponse
 from app.api.v1.auth import get_current_user
 from app.utils.file_utils import (
     validate_file_type,
@@ -63,7 +63,7 @@ async def get_task_with_access(task_id: int, db: AsyncSession, current_user: Use
     return task
 
 
-@router.post("/tasks/{task_id}/attachments", response_model=AttachmentResponse)
+@router.post("/tasks/{task_id}/attachments", response_model=MessageResponse)
 async def upload_attachment(
     task_id: int,
     file: UploadFile = File(...),
@@ -128,20 +128,24 @@ async def upload_attachment(
     await db.commit()
     await db.refresh(attachment)
     
-    # Step 9: 返回附件信息
-    return AttachmentResponse(
-        id=attachment.id,
-        task_id=attachment.task_id,
-        user_id=attachment.user_id,
-        filename=attachment.filename,
-        file_path=attachment.file_path,
-        file_size=attachment.file_size,
-        mime_type=attachment.mime_type,
-        created_at=attachment.created_at
+    # Step 9: 返回标准格式响应
+    return MessageResponse(
+        code=201,
+        message="上传成功",
+        data={
+            "id": attachment.id,
+            "task_id": attachment.task_id,
+            "user_id": attachment.user_id,
+            "filename": attachment.filename,
+            "file_path": attachment.file_path,
+            "file_size": attachment.file_size,
+            "mime_type": attachment.mime_type,
+            "created_at": attachment.created_at.isoformat()
+        }
     )
 
 
-@router.get("/tasks/{task_id}/attachments", response_model=AttachmentListResponse)
+@router.get("/tasks/{task_id}/attachments", response_model=MessageResponse)
 async def get_task_attachments(
     task_id: int,
     current_user: User = Depends(get_current_user),
@@ -167,23 +171,23 @@ async def get_task_attachments(
     attachments = result.scalars().all()
     
     # Step 3: 构建响应
-    attachment_responses = [
-        AttachmentResponse(
-            id=att.id,
-            task_id=att.task_id,
-            user_id=att.user_id,
-            filename=att.filename,
-            file_path=att.file_path,
-            file_size=att.file_size,
-            mime_type=att.mime_type,
-            created_at=att.created_at
-        )
+    attachment_list = [
+        {
+            "id": att.id,
+            "task_id": att.task_id,
+            "user_id": att.user_id,
+            "filename": att.filename,
+            "file_path": att.file_path,
+            "file_size": att.file_size,
+            "mime_type": att.mime_type,
+            "created_at": att.created_at.isoformat()
+        }
         for att in attachments
     ]
     
-    return AttachmentListResponse(
-        attachments=attachment_responses,
-        total=len(attachment_responses)
+    return MessageResponse(
+        data=attachment_list,
+        message="获取成功"
     )
 
 
@@ -277,5 +281,5 @@ async def delete_attachment(
     # Step 5: 提交事务
     await db.commit()
     
-    # Step 6: 返回成功消息
-    return {"message": "附件删除成功"}
+    # Step 6: 返回标准格式响应
+    return MessageResponse(message="附件删除成功")

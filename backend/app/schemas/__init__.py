@@ -409,6 +409,66 @@ class MessageResponse(BaseModel):
     data: Optional[Any] = None
 
 
+# ========== 钉钉相关 Schema ==========
+
+class ParseResultSchema(BaseModel):
+    """进度解析结果 Schema"""
+    progress_type: str = Field(..., description="进度类型: completed/in_progress/problem/extend/query")
+    confidence: float = Field(..., ge=0, le=1, description="置信度")
+    keywords: list[str] = Field(default=[], description="提取的关键词")
+    progress_value: int = Field(default=0, ge=0, le=100, description="进度百分比")
+    problem_description: str = Field(default="", description="问题描述")
+    extend_days: int = Field(default=0, ge=0, description="延期天数")
+    raw_message: str = Field(..., description="原始消息")
+
+
+class ProgressFeedbackCreate(BaseModel):
+    """创建进度反馈请求"""
+    task_id: int = Field(..., description="任务 ID")
+    message_content: str = Field(..., description="消息内容")
+    parsed_result: Optional[ParseResultSchema] = Field(None, description="解析结果")
+
+
+class ProgressFeedbackResponse(BaseModel):
+    """进度反馈响应"""
+    id: int
+    user_id: int
+    task_id: int
+    message_content: str
+    parsed_result: Optional[dict]
+    feedback_type: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DingtalkCallbackRequest(BaseModel):
+    """钉钉回调请求 Schema"""
+    msgtype: str = Field(..., description="消息类型")
+    text: Optional[dict] = Field(None, description="文本消息")
+    senderId: str = Field(..., description="发送者 ID")
+    createAt: int = Field(..., description="创建时间戳")
+    conversationId: Optional[str] = Field(None, description="会话 ID")
+
+
+class DingtalkUserMappingCreate(BaseModel):
+    """钉钉用户映射创建请求"""
+    dingtalk_user_id: str = Field(..., description="钉钉用户 ID")
+    dingtalk_name: str = Field(..., description="钉钉用户昵称")
+
+
+class DingtalkUserMappingResponse(BaseModel):
+    """钉钉用户映射响应"""
+    user_id: int
+    dingtalk_user_id: str
+    dingtalk_name: str
+    bound_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ========== LLM 智能创建任务相关 ==========
 
 class AIChatMessage(BaseModel):

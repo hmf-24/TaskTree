@@ -60,5 +60,11 @@ async def init_db():
     """应用启动时初始化数据库：创建所有未存在的表结构。"""
     from app.models import Base
     engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("✓ 数据库初始化成功")
+    except Exception as e:
+        # 如果表已存在，忽略错误继续启动
+        print(f"⚠ 数据库初始化警告: {e}")
+        print("  继续启动应用...")

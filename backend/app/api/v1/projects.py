@@ -220,11 +220,17 @@ async def delete_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """删除项目及其所有关联数据（任务、成员、标签等）"""
     project = await get_project_with_access(project_id, db, current_user, require_owner=True)
-    await db.delete(project)
-    await db.commit()
-
-    return MessageResponse(message="删除成功")
+    
+    try:
+        # 级联删除会自动处理所有关联数据
+        await db.delete(project)
+        await db.commit()
+        return MessageResponse(message="删除成功")
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除项目失败: {str(e)}")
 
 
 @router.post("/{project_id}/archive", response_model=MessageResponse)

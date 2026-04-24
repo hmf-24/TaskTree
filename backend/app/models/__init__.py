@@ -221,6 +221,8 @@ class UserNotificationSettings(Base):
     user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=False, index=True)
     dingtalk_webhook = Column(String(500), comment="钉钉Webhook URL")
     dingtalk_secret = Column(String(100), comment="钉钉签名密钥")
+    dingtalk_user_id = Column(String(100), unique=True, index=True, comment="钉钉用户 ID")
+    dingtalk_name = Column(String(100), comment="钉钉用户昵称")
     # 大模型配置（llm_api_key加密存储）
     llm_provider = Column(String(20), comment="大模型提供商")
     llm_api_key_encrypted = Column(Text, comment="大模型API Key（加密）")
@@ -309,3 +311,32 @@ class AIConversation(Base):
         """设置上下文数据"""
         import json
         self.context_data = json.dumps(value, ensure_ascii=False)
+
+
+class ProgressFeedback(Base):
+    """进度反馈表 - 记录用户通过钉钉发送的进度反馈"""
+    __tablename__ = 'progress_feedback'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True, comment="用户 ID")
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True, comment="任务 ID")
+    message_content = Column(Text, nullable=False, comment="原始消息内容")
+    parsed_result = Column(Text, comment="解析结果 (JSON 格式)")
+    feedback_type = Column(String(50), comment="反馈类型: completed/in_progress/problem/extend/query")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    # 关联关系
+    user = relationship('User', backref='progress_feedback')
+    task = relationship('Task', backref='progress_feedback')
+
+    @property
+    def parsed_dict(self) -> dict:
+        """获取解析结果"""
+        import json
+        return json.loads(self.parsed_result) if self.parsed_result else {}
+
+    @parsed_dict.setter
+    def parsed_dict(self, value: dict):
+        """设置解析结果"""
+        import json
+        self.parsed_result = json.dumps(value, ensure_ascii=False)

@@ -769,6 +769,42 @@ export default function ProjectDetail() {
         <h1 className="text-2xl font-bold m-0">{project?.name || '项目详情'}</h1>
         <Tag color="blue">{project?.task_count || 0} 个任务</Tag>
         <Tag color="green">{project?.completed_count || 0} 已完成</Tag>
+        
+        {/* 项目菜单 */}
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'rename',
+                label: '修改项目名称',
+                onClick: () => {
+                  const newName = prompt('请输入新的项目名称:', project?.name);
+                  if (newName && newName.trim()) {
+                    projectsAPI.update(Number(id), { name: newName.trim() })
+                      .then(() => {
+                        message.success('项目名称已更新');
+                        fetchProject();
+                      })
+                      .catch((err) => {
+                        message.error(err.message || '更新失败');
+                      });
+                  }
+                }
+              },
+              {
+                key: 'settings',
+                label: '项目设置',
+                onClick: () => {
+                  // 可以在这里添加项目设置功能
+                  message.info('项目设置功能开发中...');
+                }
+              }
+            ]
+          }}
+          trigger={['click']}
+        >
+          <Button type="text" icon={<MoreOutlined />} />
+        </Dropdown>
       </div>
 
       {/* 工具栏 - 响应式布局 */}

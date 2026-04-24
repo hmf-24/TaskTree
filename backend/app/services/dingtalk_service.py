@@ -13,7 +13,7 @@ import httpx
 from typing import Optional
 
 
-class DingTalkService:
+class DingtalkService:
     """钉钉通知服务"""
 
     def __init__(self, webhook_url: str = None, secret: str = None):
@@ -22,21 +22,30 @@ class DingTalkService:
 
     async def send_message(
         self,
-        content: str,
+        dingtalk_user_id: str = None,
+        content: str = None,
         msg_type: str = "markdown",
-        title: str = "TaskTree 任务提醒"
+        title: str = "TaskTree 任务提醒",
+        webhook_url: str = None,
+        secret: str = None
     ) -> dict:
         """发送钉钉消息
 
         Args:
+            dingtalk_user_id: 钉钉用户ID（用于私聊）
             content: 消息内容（Markdown格式）
             msg_type: 消息类型 text/markdown
             title: 标题（仅markdown用）
+            webhook_url: Webhook URL（可覆盖默认值）
+            secret: 签名密钥（可覆盖默认值）
 
         Returns:
             {"success": bool, "message_id": str, "error": str}
         """
-        if not self.webhook_url:
+        url = webhook_url or self.webhook_url
+        sig_secret = secret or self.secret
+        
+        if not url:
             return {"success": False, "error": "未配置Webhook URL"}
 
         # 构建消息体
@@ -55,17 +64,23 @@ class DingTalkService:
                     "content": content
                 }
             }
+        
+        # 如果指定了用户ID，添加@提及
+        if dingtalk_user_id:
+            message["at"] = {
+                "atUserIds": [dingtalk_user_id]
+            }
 
         try:
             # 如果配置了签名，使用签名验证
-            url = self.webhook_url
-            if self.secret:
-                timestamp, sign = self._generate_sign(self.secret)
-                url = f"{self.webhook_url}&timestamp={timestamp}&sign={sign}"
+            final_url = url
+            if sig_secret:
+                timestamp, sign = self._generate_sign(sig_secret)
+                final_url = f"{url}&timestamp={timestamp}&sign={sign}"
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    url,
+                    final_url,
                     json=message,
                     headers={"Content-Type": "application/json"},
                     timeout=10.0
@@ -209,4 +224,4 @@ class DingTalkService:
 
 
 # 全局服务实例
-dingtalk_service = DingTalkService()
+dingtalk_service = DingtalkService()

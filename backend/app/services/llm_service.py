@@ -321,6 +321,59 @@ JSON：{{
                 raise Exception(f"API error: {response.status_code} - {response.text}")
             return response.json().get("content", [{}])[0].get("text", "")
 
+    async def parse_progress(self, message: str, user_id: int = None) -> dict:
+        """
+        解析用户通过钉钉发送的进度反馈消息
+        
+        Args:
+            message: 用户发送的消息内容
+            user_id: 用户 ID（用于日志记录）
+            
+        Returns:
+            dict: 解析结果，包含进度类型、关键词、数值等
+        """
+        if not self.api_key:
+            return self._simple_progress_parse(message)
+
+        prompt = f"""你是一个任务进度解析助手。请分析用户的钉钉消息，提取进度信息。
+
+用户消息：{message}
+
+请返回 JSON 格式的解析结果：
+{{
+    "progress_type": "completed|in_progress|problem|extend|query",
+    "confidence": 0.0-1.0,
+    "keywords": ["关键词1", "关键词2"],
+    "progress_value": 0-100,
+    "problem_description": "问题描述（如果有）",
+    "extend_days": 0,
+    "raw_message": "{message}"
+}}
+
+进度类型说明：
+- completed: 任务已完成
+- in_progress: 任务进行中，可能包含进度百分比
+- problem: 遇到问题或障碍
+- extend: 请求延期
+- query: 查询任务状态
+
+关键词应该是任务名称或相关描述词。
+如果消息中有百分比数字，提取到 progress_value。
+如果消息中有"延期"、"推迟"等词，提取天数到 extend_days。"""
+
+        try:
+            response = await self._call_api(prompt)
+            result = self._parse_response(response)
+            
+            # 确保返回的是有效的进度解析结果
+            if result and "progress_type" in result:
+                return result
+            else:
+                return self._simple_progress_parse(message)
+        except Exception as e:
+            print(f"LLM 进度解析失败: {e}")
+            return self._simple_progress_parse(message)
+
     async def parse_user_intent(self, text: str) -> dict:
         """解析用户自然语言输入的意图"""
         if not self.api_key:
@@ -546,6 +599,66 @@ JSON：{{
         if match:
             params["time"] = f"{match.group(1)}:00"
         return {"intent": intent, "params": params, "raw": text, "confidence": confidence}
+
+    def _simple_progress_parse(self, message: str) -> dict:
+        """简单的进度解析降级方案（规则引擎）"""
+        progress_type = "query"
+        confidence = 0.5
+        keywords = []
+        progress_value = 0
+        problem_description = ""
+        extend_days = 0
+        
+        # 检测进度类型
+        if any(word in message for word in ["完成", "已完成", "done", "finished"]):
+            progress_type = "completed"
+            confidence = 0.9
+        elif any(word in message for word in ["进行中", "进行", "doing", "in progress", "进度"]):
+            progress_type = "in_progress"
+            confidence = 0.8
+        elif any(word in message for word in ["问题", "遇到", "卡住", "困难", "issue", "problem", "stuck"]):
+            progress_type = "problem"
+            confidence = 0.8
+        elif any(word in message for word in ["延期", "推迟", "延后", "extend", "delay"]):
+            progress_type = "extend"
+            confidence = 0.8
+        
+        # 提取百分比
+        percent_match = re.search(r"(\d+)%", message)
+        if percent_match:
+            progress_value = int(percent_match.group(1))
+            confidence = min(confidence + 0.1, 1.0)
+        
+        # 提取延期天数
+        if progress_type == "extend":
+            days_match = re.search(r"(\d+)\s*天", message)
+            if days_match:
+                extend_days = int(days_match.group(1))
+        
+        # 提取问题描述
+        if progress_type == "problem":
+            # 尝试提取冒号后的内容
+            colon_match = re.search(r"[:：](.*?)(?:[。，、]|$)", message)
+            if colon_match:
+                problem_description = colon_match.group(1).strip()
+            else:
+                problem_description = message
+        
+        # 提取关键词（简单的词语分割）
+        # 移除常见的虚词
+        stop_words = {"的", "了", "和", "是", "在", "我", "你", "他", "已", "正在", "已经"}
+        words = re.findall(r"[\u4e00-\u9fff]+|[a-zA-Z]+", message)
+        keywords = [w for w in words if w not in stop_words and len(w) > 1][:5]
+        
+        return {
+            "progress_type": progress_type,
+            "confidence": confidence,
+            "keywords": keywords,
+            "progress_value": progress_value,
+            "problem_description": problem_description,
+            "extend_days": extend_days,
+            "raw_message": message
+        }
 
 
 llm_service = LLMService()

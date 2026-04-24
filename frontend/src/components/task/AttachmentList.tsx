@@ -58,10 +58,14 @@ export default function AttachmentList({ taskId, onUpdate }: AttachmentListProps
     setLoading(true);
     try {
       const res = await attachmentsAPI.list(taskId);
+      console.log('[DEBUG] Attachments API response:', res);
+      console.log('[DEBUG] res.code:', res.code);
+      console.log('[DEBUG] res.data:', res.data);
       if (res.code === 200) {
         setAttachments(res.data || []);
       }
     } catch (error: any) {
+      console.error('[DEBUG] Attachments API error:', error);
       message.error(error.message || '获取附件列表失败');
     } finally {
       setLoading(false);

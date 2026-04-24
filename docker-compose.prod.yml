@@ -1,26 +1,26 @@
 version: '3.8'
 
 services:
-  # 后端服务
+  # 后端服务 (生产配置)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: tasktree-backend
+    container_name: tasktree-backend-prod
     image: tasktree-backend:latest
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite+aiosqlite:////app/data/tasktree.db
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - DEBUG=${DEBUG:-false}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/data/tasktree.db}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=false
+      - LOG_LEVEL=warning
       - PYTHONUNBUFFERED=1
     volumes:
       - tasktree-data:/app/data
       - tasktree-uploads:/app/uploads
       - tasktree-logs:/app/logs
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -32,15 +32,23 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "50m"
+        max-file: "10"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
 
-  # 前端服务 (Nginx)
+  # 前端服务 (生产配置)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: tasktree-frontend
+    container_name: tasktree-frontend-prod
     image: tasktree-frontend:latest
     ports:
       - "80:80"
@@ -48,7 +56,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
@@ -60,8 +68,16 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "50m"
+        max-file: "10"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
 
 volumes:
   tasktree-data:
