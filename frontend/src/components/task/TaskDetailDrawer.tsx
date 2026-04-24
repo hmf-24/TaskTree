@@ -20,6 +20,7 @@ import { STATUS_LABELS, PRIORITY_LABELS, STATUS_COLORS, PRIORITY_COLORS } from '
 import type { Task, Tag as TagType } from '../../types';
 import CommentList from '../comment/CommentList';
 import AIAssistantPanel from '../ai/AIAssistantPanel';
+import AttachmentList from './AttachmentList';
 
 interface TaskDetailDrawerProps {
   taskId: number | null;
@@ -305,6 +306,15 @@ export default function TaskDetailDrawer({
           <Divider />
           <div style={{ fontWeight: 600, marginBottom: 12 }}>评论</div>
           <CommentList taskId={taskId} />
+        </>
+      )}
+
+      {/* 附件区 */}
+      {taskId && taskDetail && (
+        <>
+          <Divider />
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>附件</div>
+          <AttachmentList taskId={taskId} onUpdate={fetchTaskDetail} />
         </>
       )}
 

@@ -317,6 +317,12 @@ class AttachmentResponse(BaseModel):
         from_attributes = True
 
 
+class AttachmentListResponse(BaseModel):
+    """附件列表响应"""
+    attachments: list[AttachmentResponse]
+    total: int
+
+
 # ========== 通知相关 ==========
 
 class NotificationResponse(BaseModel):

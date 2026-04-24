@@ -6,10 +6,20 @@ TaskTree 后端应用入口
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import init_db
-from app.api.v1 import auth, projects, tasks, users, export, notifications, notification_settings, llm_tasks, conversations
+from app.core.exceptions import (
+    AppException,
+    app_exception_handler,
+    validation_exception_handler,
+    sqlalchemy_exception_handler,
+    file_system_exception_handler,
+    generic_exception_handler
+)
+from app.api.v1 import auth, projects, tasks, users, export, notifications, notification_settings, llm_tasks, conversations, attachments
 
 
 @asynccontextmanager
@@ -35,6 +45,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 注册异常处理器
+app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+app.add_exception_handler(OSError, file_system_exception_handler)
+app.add_exception_handler(IOError, file_system_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
 # 注册路由
 app.include_router(auth.router, prefix="/api/v1/tasktree/auth", tags=["认证"])
 app.include_router(users.router, prefix="/api/v1/tasktree/users", tags=["用户"])
@@ -45,6 +63,7 @@ app.include_router(notifications.router, prefix="/api/v1/tasktree/notifications"
 app.include_router(notification_settings.router, prefix="/api/v1/tasktree", tags=["智能提醒"])
 app.include_router(llm_tasks.router, prefix="/api/v1/tasktree", tags=["AI智能任务"])
 app.include_router(conversations.router, prefix="/api/v1/tasktree", tags=["AI对话"])
+app.include_router(attachments.router, prefix="/api/v1", tags=["附件"])
 
 @app.get("/")
 def root():

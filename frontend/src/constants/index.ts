@@ -61,3 +61,38 @@ export type TaskStatusType = (typeof TASK_STATUS)[keyof typeof TASK_STATUS];
 export type PriorityType = (typeof PRIORITY)[keyof typeof PRIORITY];
 export type ProjectStatusType = (typeof PROJECT_STATUS)[keyof typeof PROJECT_STATUS];
 export type MemberRoleType = (typeof MEMBER_ROLE)[keyof typeof MEMBER_ROLE];
+
+// 文件附件相关常量
+// 允许上传的文件扩展名
+export const ALLOWED_FILE_EXTENSIONS = [
+  'doc', 'docx', 'pdf', 'txt', 'md',
+  'jpg', 'jpeg', 'png', 'gif',
+  'zip', 'rar',
+  'xls', 'xlsx', 'ppt', 'pptx',
+] as const;
+
+// 最大文件大小（50MB）
+export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+
+// 文件类型标签映射（用于显示友好的文件类型名称）
+export const FILE_TYPE_LABELS: Record<string, string> = {
+  // 文档类型
+  doc: 'Word 文档',
+  docx: 'Word 文档',
+  pdf: 'PDF 文档',
+  txt: '文本文件',
+  md: 'Markdown 文档',
+  // 图片类型
+  jpg: 'JPG 图片',
+  jpeg: 'JPEG 图片',
+  png: 'PNG 图片',
+  gif: 'GIF 图片',
+  // 压缩包类型
+  zip: 'ZIP 压缩包',
+  rar: 'RAR 压缩包',
+  // 表格和演示文稿类型
+  xls: 'Excel 表格',
+  xlsx: 'Excel 表格',
+  ppt: 'PowerPoint 演示文稿',
+  pptx: 'PowerPoint 演示文稿',
+};

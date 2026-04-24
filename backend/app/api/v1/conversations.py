@@ -39,6 +39,8 @@ router = APIRouter()
 
 def get_llm_service() -> LLMService:
     """获取 LLM 服务实例"""
+    # 注意：这里返回的是默认实例，实际使用时需要从用户设置中读取配置
+    # 在路由函数中会重新配置
     return LLMService()
 
 
@@ -58,6 +60,32 @@ async def create_conversation(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"无效的对话类型,必须是: {', '.join(valid_types)}"
             )
+        
+        # 从用户设置中读取 LLM 配置
+        from app.models import UserNotificationSettings
+        from app.core.crypto import decrypt_api_key
+        
+        settings_result = await db.execute(
+            select(UserNotificationSettings).where(
+                UserNotificationSettings.user_id == current_user.id
+            )
+        )
+        settings = settings_result.scalar_one_or_none()
+        
+        if not settings or not settings.llm_api_key_encrypted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="未配置大模型服务，请先在设置中配置 LLM API Key"
+            )
+        
+        # 解密 API Key 并配置 LLM 服务
+        api_key = decrypt_api_key(settings.llm_api_key_encrypted)
+        llm_service = LLMService(
+            provider=settings.llm_provider or "minimax",
+            api_key=api_key,
+            model=settings.llm_model or "MiniMax-M2.7",
+            group_id=settings.llm_group_id
+        )
         
         # 创建对话服务
         conversation_service = AIConversationService(db, llm_service)
@@ -117,6 +145,32 @@ async def send_message(
 ):
     """发送消息"""
     try:
+        # 从用户设置中读取 LLM 配置
+        from app.models import UserNotificationSettings
+        from app.core.crypto import decrypt_api_key
+        
+        settings_result = await db.execute(
+            select(UserNotificationSettings).where(
+                UserNotificationSettings.user_id == current_user.id
+            )
+        )
+        settings = settings_result.scalar_one_or_none()
+        
+        if not settings or not settings.llm_api_key_encrypted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="未配置大模型服务，请先在设置中配置 LLM API Key"
+            )
+        
+        # 解密 API Key 并配置 LLM 服务
+        api_key = decrypt_api_key(settings.llm_api_key_encrypted)
+        llm_service = LLMService(
+            provider=settings.llm_provider or "minimax",
+            api_key=api_key,
+            model=settings.llm_model or "MiniMax-M2.7",
+            group_id=settings.llm_group_id
+        )
+        
         # 创建对话服务
         conversation_service = AIConversationService(db, llm_service)
         

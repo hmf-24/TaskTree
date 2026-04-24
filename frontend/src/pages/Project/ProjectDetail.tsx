@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -740,13 +740,14 @@ export default function ProjectDetail() {
 
   const activeTask = activeId ? findTaskById(tasks, Number(activeId)) : null;
 
-  const viewOptions = [
+  // 使用 useMemo 缓存视图选项配置
+  const viewOptions = useMemo(() => [
     { value: 'tree', icon: <ApartmentOutlined />, label: '树形' },
     { value: 'kanban', icon: <AppstoreOutlined />, label: '看板' },
     { value: 'list', icon: <UnorderedListOutlined />, label: '列表' },
     { value: 'gantt', icon: <BarChartOutlined />, label: '甘特图' },
     { value: 'dependency', icon: <ApartmentOutlined />, label: '依赖图' },
-  ];
+  ], []);
 
   return (
     <div className="p-6">
@@ -760,75 +761,176 @@ export default function ProjectDetail() {
         <Tag color="green">{project?.completed_count || 0} 已完成</Tag>
       </div>
 
-      <div className="flex justify-between mb-4">
-        <Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
-            添加任务
-          </Button>
-          <Button 
-            type="primary" 
-            style={{ background: '#722ed1', borderColor: '#722ed1' }} 
-            onClick={() => setAiModalVisible(true)}
-          >
-            ✨ AI 智能创建
-          </Button>
-          <Button
-            type="primary"
-            icon={<RobotOutlined />}
-            style={{ background: '#52c41a', borderColor: '#52c41a' }}
-            onClick={() => {
-              setAiMode('analyze');
-              setAiPanelOpen(true);
-            }}
-          >
-            AI 分析
-          </Button>
+      {/* 工具栏 - 响应式布局 */}
+      <div className="mb-4">
+        {/* 移动端：垂直堆叠 */}
+        <div className="flex flex-col gap-4 md:hidden">
+          {/* 核心操作区 */}
+          <div className="flex flex-col gap-2">
+            <span className="text-xs text-gray-500 font-medium">核心操作</span>
+            <Space wrap>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
+                添加任务
+              </Button>
+              <Button 
+                type="primary" 
+                style={{ background: '#722ed1', borderColor: '#722ed1' }} 
+                onClick={() => setAiModalVisible(true)}
+              >
+                ✨ AI智能创建
+              </Button>
+              <Button
+                type="primary"
+                icon={<RobotOutlined />}
+                style={{ background: '#52c41a', borderColor: '#52c41a' }}
+                onClick={() => {
+                  setAiMode('analyze');
+                  setAiPanelOpen(true);
+                }}
+              >
+                AI分析
+              </Button>
+            </Space>
+          </div>
+
+          {/* 视图切换区 */}
+          <div className="flex flex-col gap-2">
+            <span className="text-xs text-gray-500 font-medium">视图切换</span>
+            <Segmented
+              options={viewOptions}
+              value={viewType}
+              onChange={(v) => setViewType(v as string)}
+              block
+            />
+          </div>
+
+          {/* 工具区 */}
+          <div className="flex flex-col gap-2">
+            <span className="text-xs text-gray-500 font-medium">工具</span>
+            <Space wrap>
+              <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
+                标签管理
+              </Button>
+              <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
+                导出
+              </Button>
+              <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+                导入
+              </Button>
+            </Space>
+          </div>
+
+          {/* 批量操作区（如果有选中项） */}
           {selectedIds.size > 0 && (
-            <>
-              <Button onClick={() => {
-                // 批量删除
-                Modal.confirm({
-                  title: '批量删除',
-                  content: `确定要删除选中的 ${selectedIds.size} 个任务吗？`,
-                  onOk: async () => {
-                    for (const id of selectedIds) {
-                      try {
-                        await tasksAPI.delete(id, false);
-                      } catch (e) {}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-gray-500 font-medium">批量操作</span>
+              <Space wrap>
+                <Button onClick={() => {
+                  Modal.confirm({
+                    title: '批量删除',
+                    content: `确定要删除选中的 ${selectedIds.size} 个任务吗？`,
+                    onOk: async () => {
+                      for (const id of selectedIds) {
+                        try {
+                          await tasksAPI.delete(id, false);
+                        } catch (e) {}
+                      }
+                      message.success(`已删除 ${selectedIds.size} 个任务`);
+                      setSelectedIds(new Set());
+                      fetchTasks();
                     }
-                    message.success(`已删除 ${selectedIds.size} 个任务`);
-                    setSelectedIds(new Set());
-                    fetchTasks();
-                  }
-                });
-              }}>
-                删除选中 ({selectedIds.size})
-              </Button>
-              <Button onClick={() => {
-                setSelectedIds(new Set());
-                setSelectedTaskId(null);
-              }}>
-                取消选择
-              </Button>
-            </>
+                  });
+                }}>
+                  删除选中 ({selectedIds.size})
+                </Button>
+                <Button onClick={() => {
+                  setSelectedIds(new Set());
+                  setSelectedTaskId(null);
+                }}>
+                  取消选择
+                </Button>
+              </Space>
+            </div>
           )}
-          <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
-            标签管理
-          </Button>
-          <Segmented
-            options={viewOptions}
-            value={viewType}
-            onChange={(v) => setViewType(v as string)}
-          />
-        </Space>
-        <Space>
-          <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
-            导出
-          </Button>
-          <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
-            导入
-          </Button>
-        </Space>
+        </div>
+
+        {/* 桌面端：水平布局 */}
+        <div className="hidden md:flex md:justify-between md:items-center">
+          <Space size="large">
+            {/* 核心操作区 */}
+            <Space>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
+                添加任务
+              </Button>
+              <Button 
+                type="primary" 
+                style={{ background: '#722ed1', borderColor: '#722ed1' }} 
+                onClick={() => setAiModalVisible(true)}
+              >
+                ✨ AI智能创建
+              </Button>
+              <Button
+                type="primary"
+                icon={<RobotOutlined />}
+                style={{ background: '#52c41a', borderColor: '#52c41a' }}
+                onClick={() => {
+                  setAiMode('analyze');
+                  setAiPanelOpen(true);
+                }}
+              >
+                AI分析
+              </Button>
+              {selectedIds.size > 0 && (
+                <>
+                  <Button onClick={() => {
+                    Modal.confirm({
+                      title: '批量删除',
+                      content: `确定要删除选中的 ${selectedIds.size} 个任务吗？`,
+                      onOk: async () => {
+                        for (const id of selectedIds) {
+                          try {
+                            await tasksAPI.delete(id, false);
+                          } catch (e) {}
+                        }
+                        message.success(`已删除 ${selectedIds.size} 个任务`);
+                        setSelectedIds(new Set());
+                        fetchTasks();
+                      }
+                    });
+                  }}>
+                    删除选中 ({selectedIds.size})
+                  </Button>
+                  <Button onClick={() => {
+                    setSelectedIds(new Set());
+                    setSelectedTaskId(null);
+                  }}>
+                    取消选择
+                  </Button>
+                </>
+              )}
+            </Space>
+
+            {/* 视图切换区 */}
+            <Segmented
+              options={viewOptions}
+              value={viewType}
+              onChange={(v) => setViewType(v as string)}
+            />
+          </Space>
+
+          {/* 工具区 */}
+          <Space>
+            <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
+              标签管理
+            </Button>
+            <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
+              导出
+            </Button>
+            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+              导入
+            </Button>
+          </Space>
+        </div>
       </div>
 
       {/* 树形视图 - 带拖拽 */}

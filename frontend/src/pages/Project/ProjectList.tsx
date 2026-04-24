@@ -16,9 +16,8 @@ import {
 import {
   PlusOutlined,
   MoreOutlined,
-  EditOutlined,
   DeleteOutlined,
-  InboxOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -76,6 +75,9 @@ export default function ProjectList() {
     Modal.confirm({
       title: '确认删除',
       content: '删除后无法恢复，确定要删除该项目吗？',
+      okText: '确认',
+      cancelText: '取消',
+      okType: 'danger',
       onOk: async () => {
         try {
           const res = await projectsAPI.delete(id);
@@ -86,7 +88,14 @@ export default function ProjectList() {
             message.error(res.message || '删除失败');
           }
         } catch (error: any) {
-          message.error(error.message || '删除失败');
+          // 处理特殊错误场景
+          if (error.message?.includes('timeout')) {
+            message.error('请求超时，请稍后重试');
+          } else if (error.message?.includes('Network') || error.message?.includes('network')) {
+            message.error('网络连接失败，请检查网络');
+          } else {
+            message.error(error.message || '删除失败');
+          }
         }
       },
     });
@@ -108,16 +117,13 @@ export default function ProjectList() {
 
   const getMenuItems = (project: any) => [
     {
-      key: 'edit',
-      label: '编辑',
-      icon: <EditOutlined />,
+      key: 'enter',
+      label: '进入项目',
+      icon: <FolderOpenOutlined />,
       onClick: () => navigate(`/project/${project.id}`),
     },
     {
-      key: 'archive',
-      label: '归档',
-      icon: <InboxOutlined />,
-      onClick: () => handleArchive(project.id),
+      type: 'divider' as const,
     },
     {
       key: 'delete',
@@ -150,8 +156,16 @@ export default function ProjectList() {
               key={project.id}
               hoverable
               extra={
-                <Dropdown menu={{ items: getMenuItems(project) }} trigger={['click']}>
-                  <Button type="text" icon={<MoreOutlined />} />
+                <Dropdown 
+                  menu={{ items: getMenuItems(project) }} 
+                  trigger={['click']}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button 
+                    type="text" 
+                    icon={<MoreOutlined />}
+                    onClick={(e) => e.stopPropagation()}
+                  />
                 </Dropdown>
               }
               onClick={() => navigate(`/project/${project.id}`)}

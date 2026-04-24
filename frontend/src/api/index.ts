@@ -224,3 +224,57 @@ export const conversationsAPI = {
   // 删除对话
   delete: (conversationId: number) => api.delete(`/conversations/${conversationId}`),
 };
+
+// Attachments API
+export const attachmentsAPI = {
+  // 上传附件
+  upload: (taskId: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/attachments/tasks/${taskId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  // 获取附件列表
+  list: (taskId: number) => api.get(`/attachments/tasks/${taskId}/attachments`),
+
+  // 下载附件
+  download: (attachmentId: number) => {
+    const token = useAuthStore.getState().token;
+    const url = `/api/v1/tasktree/attachments/${attachmentId}/download`;
+    
+    // 创建隐藏的 a 标签触发下载
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', '');
+    
+    // 添加认证 token
+    if (token) {
+      fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error('Download failed');
+          return response.blob();
+        })
+        .then((blob) => {
+          const blobUrl = window.URL.createObjectURL(blob);
+          link.href = blobUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+        })
+        .catch((error) => {
+          console.error('Download error:', error);
+          throw error;
+        });
+    }
+  },
+
+  // 删除附件
+  delete: (attachmentId: number) => api.delete(`/attachments/${attachmentId}`),
+};

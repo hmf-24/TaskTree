@@ -72,6 +72,18 @@ export interface Comment {
   user: User;
 }
 
+// ========== 附件类型 ==========
+export interface Attachment {
+  id: number;
+  task_id: number;
+  user_id: number;
+  filename: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  created_at: string;
+}
+
 // ========== 通知类型 ==========
 export interface Notification {
   id: number;
