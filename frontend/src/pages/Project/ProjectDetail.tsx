@@ -247,6 +247,16 @@ function SortableTaskItem({
             </span>
           </div>
           <Space size={4}>
+            {/* 显示任务标签 */}
+            {task.tags && task.tags.length > 0 && (
+              <>
+                {task.tags.map((tag) => (
+                  <Tag key={tag.id} color={tag.color} style={{ margin: 0, fontSize: 12 }}>
+                    {tag.name}
+                  </Tag>
+                ))}
+              </>
+            )}
             <Tag color={PRIORITY_COLORS[task.priority]} style={{ margin: 0 }}>
               {PRIORITY_LABELS[task.priority]}
             </Tag>

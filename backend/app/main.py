@@ -63,7 +63,7 @@ app.include_router(notifications.router, prefix="/api/v1/tasktree/notifications"
 app.include_router(notification_settings.router, prefix="/api/v1/tasktree", tags=["智能提醒"])
 app.include_router(llm_tasks.router, prefix="/api/v1/tasktree", tags=["AI智能任务"])
 app.include_router(conversations.router, prefix="/api/v1/tasktree", tags=["AI对话"])
-app.include_router(attachments.router, prefix="/api/v1", tags=["附件"])
+app.include_router(attachments.router, prefix="/api/v1/tasktree", tags=["附件"])
 
 @app.get("/")
 def root():
