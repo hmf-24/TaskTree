@@ -39,5 +39,10 @@ class Settings(BaseSettings):
     # ---- 智能提醒调度 ----
     REMINDER_INTERVAL_MINUTES: int = 30  # 定时检查间隔
 
+    # ---- 钉钉Stream模式 ----
+    DINGTALK_CLIENT_ID: str = ""  # 钉钉AppKey
+    DINGTALK_CLIENT_SECRET: str = ""  # 钉钉AppSecret
+    DINGTALK_STREAM_ENABLED: bool = False  # 是否启用Stream模式
+
 
 settings = Settings()

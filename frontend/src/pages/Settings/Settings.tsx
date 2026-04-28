@@ -14,6 +14,7 @@ import {
   Space,
   Select,
   Checkbox,
+  Upload,
 } from 'antd';
 import {
   UserOutlined,
@@ -23,7 +24,9 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   LoadingOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
+import type { UploadProps } from 'antd';
 import { Helmet } from 'react-helmet-async';
 import { authAPI, reminderSettingsAPI } from '../../api';
 import { useAuthStore } from '../../stores/auth';
@@ -80,6 +83,7 @@ export default function Settings() {
   const [statsData, setStatsData] = useState<any>(null);
   const [testingConn, setTestingConn] = useState(false);
   const [connResult, setConnResult] = useState<{ success: boolean; msg: string; detail?: any } | null>(null);
+  const [uploading, setUploading] = useState(false);
   // 分析维度用独立 state，避免 setFieldsValue 嵌套路径问题
   const [analysisConfig, setAnalysisConfig] = useState({
     overdue: true, progress_stalled: true, dependency_unblocked: true, team_load: true, risk_prediction: true,
@@ -216,6 +220,66 @@ export default function Settings() {
     finally { setTestingConn(false); }
   };
 
+  const handleAvatarUpload: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options;
+    
+    // 检查文件类型
+    const isImage = (file as File).type.startsWith('image/');
+    if (!isImage) {
+      message.error('只能上传图片文件！');
+      onError?.(new Error('只能上传图片文件'));
+      return;
+    }
+
+    // 检查图片尺寸比例
+    const img = new Image();
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      img.src = e.target?.result as string;
+      img.onload = async () => {
+        const ratio = img.width / img.height;
+        if (Math.abs(ratio - 1) > 0.1) {
+          message.warning('建议上传1:1比例的图片以获得最佳显示效果');
+        }
+
+        // 上传文件
+        setUploading(true);
+        try {
+          const formData = new FormData();
+          formData.append('file', file as File);
+
+          const response = await fetch('/api/v1/tasktree/attachments/upload', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+          });
+
+          const result = await response.json();
+          
+          if (result.code === 200 && result.data) {
+            const avatarUrl = result.data.url;
+            profileForm.setFieldsValue({ avatar: avatarUrl });
+            message.success('头像上传成功！');
+            onSuccess?.(result.data);
+          } else {
+            message.error(result.message || '上传失败');
+            onError?.(new Error(result.message || '上传失败'));
+          }
+        } catch (error: any) {
+          message.error(error.message || '上传失败');
+          onError?.(error);
+        } finally {
+          setUploading(false);
+        }
+      };
+    };
+    
+    reader.readAsDataURL(file as File);
+  };
+
   const isCustomProvider = watchedProvider === 'custom';
   const currentProvider = LLM_PROVIDERS[watchedProvider] || LLM_PROVIDERS.minimax;
 
@@ -233,7 +297,20 @@ export default function Settings() {
           <Form form={profileForm} layout="vertical" onFinish={handleSaveProfile} style={{ maxWidth: 400, margin: '0 auto' }}>
             <Form.Item label="邮箱" name="email"><Input disabled prefix={<UserOutlined />} /></Form.Item>
             <Form.Item label="昵称" name="nickname" rules={[{ required: true, message: '请输入昵称' }]}><Input placeholder="请输入昵称" prefix={<UserOutlined />} /></Form.Item>
-            <Form.Item label="头像 URL" name="avatar"><Input placeholder="请输入头像 URL（可选）" /></Form.Item>
+            <Form.Item label="头像" name="avatar" extra="建议上传1:1比例的图片，支持JPG、PNG等格式">
+              <Input.Group compact style={{ display: 'flex', gap: 8 }}>
+                <Input placeholder="头像URL（可选）" style={{ flex: 1 }} />
+                <Upload
+                  showUploadList={false}
+                  customRequest={handleAvatarUpload}
+                  accept="image/*"
+                >
+                  <Button icon={<UploadOutlined />} loading={uploading}>
+                    {uploading ? '上传中...' : '上传图片'}
+                  </Button>
+                </Upload>
+              </Input.Group>
+            </Form.Item>
             <Form.Item><Button type="primary" htmlType="submit" loading={saving} icon={<SaveOutlined />} block>保存修改</Button></Form.Item>
           </Form>
         </Card>

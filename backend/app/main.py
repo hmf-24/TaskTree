@@ -26,7 +26,22 @@ from app.api.v1 import auth, projects, tasks, users, export, notifications, noti
 async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     await init_db()
+    
+    # 启动钉钉Stream客户端
+    try:
+        from app.services.dingtalk_stream_client import start_dingtalk_stream_mode
+        await start_dingtalk_stream_mode(app)
+    except Exception as e:
+        print(f"⚠️  钉钉Stream客户端启动失败: {e}")
+    
     yield
+    
+    # 关闭时停止Stream客户端
+    if hasattr(app.state, 'dingtalk_stream_client'):
+        try:
+            await app.state.dingtalk_stream_client.stop()
+        except Exception as e:
+            print(f"⚠️  钉钉Stream客户端停止失败: {e}")
 
 
 app = FastAPI(
