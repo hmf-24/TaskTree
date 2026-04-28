@@ -260,7 +260,9 @@ async def trigger_reminder(
     db: AsyncSession = Depends(get_db)
 ):
     """手动触发立即提醒（不计入每日配额）"""
+    import asyncio
     from app.services.reminder_scheduler import reminder_scheduler
+    from app.core.database import get_session_maker
 
     # 获取用户设置
     result = await db.execute(
@@ -273,15 +275,18 @@ async def trigger_reminder(
     if not settings or not settings.dingtalk_webhook:
         return MessageResponse(code=400, message="未配置钉钉Webhook")
 
-    # 立即执行提醒检查（手动触发，不计入配额）
-    result = await reminder_scheduler.check_user_notifications(settings, db, is_manual=True)
+    # 异步执行提醒检查（使用新的数据库会话）
+    async def run_reminder():
+        session_maker = get_session_maker()
+        async with session_maker() as new_db:
+            try:
+                await reminder_scheduler.check_user_notifications(settings, new_db, is_manual=True)
+            except Exception as e:
+                print(f"❌ 手动提醒执行失败: {e}")
 
-    if result is False:
-        return MessageResponse(code=400, message="已达每日上限")
-    elif result is True:
-        return MessageResponse(message="提醒已发送")
-    else:
-        return MessageResponse(message="无需提醒")
+    asyncio.create_task(run_reminder())
+
+    return MessageResponse(message="提醒任务已启动，请稍后查看钉钉消息")
 
 
 @router.get("/stats", response_model=MessageResponse)

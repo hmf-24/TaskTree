@@ -229,9 +229,9 @@ class ReminderScheduler:
             return None  # 没有需要提醒的任务
 
         # 发送钉钉通知
-        from app.services.dingtalk_service import DingTalkService
+        from app.services.dingtalk_service import DingtalkService
 
-        service = DingTalkService(
+        service = DingtalkService(
             webhook_url=settings.dingtalk_webhook,
             secret=settings.dingtalk_secret
         )
@@ -247,7 +247,8 @@ class ReminderScheduler:
 
         result = await service.send_message(
             content=content,
-            title="TaskTree 智能提醒"
+            title="TaskTree 智能提醒",
+            msg_type="markdown"
         )
 
         if result.get("success"):
