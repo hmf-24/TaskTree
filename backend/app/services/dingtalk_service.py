@@ -79,6 +79,9 @@ class DingtalkService:
                 final_url = f"{url}&timestamp={timestamp}&sign={sign}"
 
             async with httpx.AsyncClient() as client:
+                print(f"📡 发送钉钉消息到: {final_url[:50]}...")
+                print(f"📝 消息内容: {message}")
+                
                 response = await client.post(
                     final_url,
                     json=message,
@@ -87,6 +90,7 @@ class DingtalkService:
                 )
 
                 result = response.json()
+                print(f"📬 钉钉响应: {result}")
 
                 if result.get("errcode") == 0:
                     return {

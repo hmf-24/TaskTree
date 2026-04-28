@@ -275,18 +275,24 @@ async def trigger_reminder(
     if not settings or not settings.dingtalk_webhook:
         return MessageResponse(code=400, message="未配置钉钉Webhook")
 
-    # 异步执行提醒检查（使用新的数据库会话）
-    async def run_reminder():
+    # 创建后台任务
+    async def run_reminder_task():
+        """后台执行提醒任务"""
         session_maker = get_session_maker()
         async with session_maker() as new_db:
             try:
                 await reminder_scheduler.check_user_notifications(settings, new_db, is_manual=True)
             except Exception as e:
                 print(f"❌ 手动提醒执行失败: {e}")
-
-    asyncio.create_task(run_reminder())
-
-    return MessageResponse(message="提醒任务已启动，请稍后查看钉钉消息")
+                import traceback
+                traceback.print_exc()
+    
+    # 使用 asyncio.create_task 创建后台任务
+    # 注意：需要保持对task的引用，避免被垃圾回收
+    task = asyncio.create_task(run_reminder_task())
+    # 将task添加到后台任务集合（如果有的话）
+    
+    return MessageResponse(message="提醒任务已启动，请稍后查看钉钉消息（约10-15秒）")
 
 
 @router.get("/stats", response_model=MessageResponse)

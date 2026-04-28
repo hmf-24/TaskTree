@@ -115,6 +115,7 @@ class ReminderScheduler:
             db: 数据库会话
             is_manual: 是否手动触发（手动触发不计入每日配额）
         """
+        print(f"🔍 开始检查用户 {settings.user_id} 的提醒，手动触发: {is_manual}")
         # 获取用户的今日发送记录
         today_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -137,20 +138,24 @@ class ReminderScheduler:
                 print(f"⏭️ 用户 {settings.user_id} 今日已达上限 ({today_count}/{settings.daily_limit})")
                 return False
 
-        # 消息去重：检查最近6小时内是否已发送过
-        six_hours_ago = datetime.now(timezone.utc) - timedelta(hours=6)
-        result = await db.execute(
-            select(NotificationLog).where(
-                and_(
-                    NotificationLog.user_id == settings.user_id,
-                    NotificationLog.sent_at >= six_hours_ago,
-                    NotificationLog.is_manual == is_manual
+        # 消息去重：检查最近6小时内是否已发送过（手动触发时跳过去重）
+        recent_task_ids = set()
+        if not is_manual:
+            six_hours_ago = datetime.now(timezone.utc) - timedelta(hours=6)
+            result = await db.execute(
+                select(NotificationLog).where(
+                    and_(
+                        NotificationLog.user_id == settings.user_id,
+                        NotificationLog.sent_at >= six_hours_ago,
+                        NotificationLog.is_manual == False
+                    )
                 )
             )
-        )
-        recent_logs = result.scalars().all()
-        recent_task_ids = {log.task_id for log in recent_logs if log.task_id}
-        print(f"📋 最近6小时已发送任务: {recent_task_ids}")
+            recent_logs = result.scalars().all()
+            recent_task_ids = {log.task_id for log in recent_logs if log.task_id}
+            print(f"📋 最近6小时已发送任务: {recent_task_ids}")
+        else:
+            print(f"🔔 手动触发，跳过去重检查")
 
         # 解析规则
         rules = json.loads(settings.rules) if settings.rules else []
@@ -220,13 +225,19 @@ class ReminderScheduler:
         # 传递分析配置
         analysis = await llm_service.analyze_tasks(all_tasks, project_name, config)
 
+        print(f"📊 LLM分析结果: need_remind={analysis.get('need_remind')}, tasks_to_remind={analysis.get('tasks_to_remind')}")
+
         if not analysis.get("need_remind"):
+            print(f"ℹ️ LLM判断无需提醒")
             return None  # 不需要提醒
 
         # 检查是否已发送过类似消息（避免重复）
         task_ids = analysis.get("tasks_to_remind", [])
         if not task_ids:
+            print(f"⚠️ 没有需要提醒的任务ID")
             return None  # 没有需要提醒的任务
+
+        print(f"🎯 准备发送提醒，任务ID: {task_ids}")
 
         # 发送钉钉通知
         from app.services.dingtalk_service import DingtalkService
@@ -251,6 +262,8 @@ class ReminderScheduler:
             msg_type="markdown"
         )
 
+        print(f"📤 钉钉发送结果: {result}")
+
         if result.get("success"):
             # 记录发送日志
             for task_id in task_ids:
@@ -266,6 +279,9 @@ class ReminderScheduler:
             await db.commit()
             print(f"✅ 用户 {settings.user_id} 提醒发送成功")
             return True  # 发送成功
+        else:
+            print(f"❌ 钉钉发送失败: {result.get('error', '未知错误')}")
+            return False
 
 
 # 全局调度器实例
