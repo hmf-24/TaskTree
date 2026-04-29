@@ -191,14 +191,52 @@ async def process_dingtalk_message(
 ):
     """处理钉钉消息（异步）"""
     try:
+        print(f"📨 收到钉钉消息: sender={dingtalk_user_id}, content={message_content}")
+        print(f"✅ 找到用户: user_id={user_id}")
+        
+        # 获取用户的Stream模式配置
+        result = await db.execute(
+            select(UserNotificationSettings).where(
+                UserNotificationSettings.user_id == user_id
+            )
+        )
+        settings = result.scalar_one_or_none()
+        
+        # 准备Stream模式参数
+        use_stream_mode = False
+        client_id = None
+        client_secret = None
+        
+        if settings and settings.dingtalk_stream_enabled:
+            use_stream_mode = True
+            client_id = settings.dingtalk_client_id
+            # 解密client_secret
+            if settings.dingtalk_client_secret_encrypted:
+                from app.core.crypto import decrypt_api_key
+                try:
+                    client_secret = decrypt_api_key(settings.dingtalk_client_secret_encrypted)
+                except Exception as e:
+                    print(f"⚠️  解密Client Secret失败: {e}")
+                    client_secret = None
+        
+        print(f"🔧 Stream模式: {use_stream_mode}, Client ID: {client_id}")
+        
+        print(f"🔍 开始解析消息: {message_content}")
+        
         # 1. 使用 ProgressParserService 解析进度
         progress_parser = ProgressParserService(llm_service)
         parse_result_dict = progress_parser.parse(message=message_content)
         
+        print(f"📊 解析结果: {parse_result_dict}")
+        
         if not parse_result_dict or parse_result_dict.get("confidence", 0) < 0.3:
+            print(f"⚠️  置信度过低，发送帮助消息")
             await dingtalk_service.send_message(
-                dingtalk_user_id,
-                message_printer.format_help_message()
+                dingtalk_user_id=dingtalk_user_id,
+                content=message_printer.format_help_message(),
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret
             )
             return
         
@@ -206,10 +244,13 @@ async def process_dingtalk_message(
         task_matcher = TaskMatcherService(db)
         keywords = parse_result_dict.get("keywords", [])
         
+        print(f"🔑 提取的关键词: {keywords}")
+        
         # 如果没有关键词，尝试从消息中提取
         if not keywords:
             # 简单分词（可以使用更复杂的分词工具）
             keywords = [word for word in message_content.split() if len(word) > 1]
+            print(f"🔑 从消息中提取的关键词: {keywords}")
         
         matched_tasks = await task_matcher.match(
             keywords=keywords,
@@ -217,26 +258,45 @@ async def process_dingtalk_message(
             limit=5
         )
         
+        print(f"📋 匹配到的任务数量: {len(matched_tasks) if matched_tasks else 0}")
+        
         if not matched_tasks:
+            print(f"⚠️  没有匹配到任务，发送错误消息")
             error_msg = message_printer.format_error_message("no_match")
-            await dingtalk_service.send_message(dingtalk_user_id, error_msg)
+            await dingtalk_service.send_message(
+                dingtalk_user_id=dingtalk_user_id,
+                content=error_msg,
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret
+            )
             return
         
         if len(matched_tasks) > 1:
+            print(f"📋 匹配到多个任务，让用户选择")
             # 多个匹配，让用户选择
             multi_match_msg = message_printer.format_multiple_matches(
                 matched_tasks,
                 " ".join(keywords)
             )
-            await dingtalk_service.send_message(dingtalk_user_id, multi_match_msg)
+            await dingtalk_service.send_message(
+                dingtalk_user_id=dingtalk_user_id,
+                content=multi_match_msg,
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret
+            )
             return
         
         # 3. 根据解析类型处理
         task = matched_tasks[0]
         parse_type = parse_result_dict.get("type", "query")
         
+        print(f"📝 解析类型: {parse_type}, 任务: {task.name}")
+        
         # 如果是查询类型，返回任务详情
         if parse_type == "query":
+            print(f"📤 发送任务详情")
             # 获取任务详细信息
             task_detail = f"""## 📋 任务详情
 
@@ -254,7 +314,10 @@ async def process_dingtalk_message(
                 dingtalk_user_id=dingtalk_user_id,
                 content=task_detail,
                 msg_type="markdown",
-                title=f"任务详情 - {task.name}"
+                title=f"任务详情 - {task.name}",
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret
             )
             return
         
@@ -289,14 +352,32 @@ async def process_dingtalk_message(
                 old_value=f"{task.status} ({task.progress}%)",
                 new_value=f"{updated_task.status} ({updated_task.progress}%)"
             )
-            await dingtalk_service.send_message(dingtalk_user_id, confirmation_msg)
+            await dingtalk_service.send_message(
+                dingtalk_user_id=dingtalk_user_id,
+                content=confirmation_msg,
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret
+            )
         
         except PermissionError:
             error_msg = message_printer.format_error_message("permission_denied")
-            await dingtalk_service.send_message(dingtalk_user_id, error_msg)
+            await dingtalk_service.send_message(
+                dingtalk_user_id=dingtalk_user_id,
+                content=error_msg,
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret
+            )
         except ValueError as e:
             error_msg = message_printer.format_error_message("parse_failed", str(e))
-            await dingtalk_service.send_message(dingtalk_user_id, error_msg)
+            await dingtalk_service.send_message(
+                dingtalk_user_id=dingtalk_user_id,
+                content=error_msg,
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret
+            )
     
     except Exception as e:
         print(f"处理钉钉消息失败: {e}")

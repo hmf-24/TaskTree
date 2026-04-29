@@ -55,16 +55,9 @@ class ProgressParserService:
                 - confidence: 置信度（0-1）
                 - keywords: 提取的关键词列表
         """
-        if self.llm_service:
-            try:
-                return self._parse_with_llm(message, task_name)
-            except Exception as e:
-                # LLM 解析失败，降级到规则引擎
-                print(f"LLM 解析失败，降级到规则引擎: {e}")
-                return self._parse_with_rules(message)
-        else:
-            # 没有 LLM 服务，直接使用规则引擎
-            return self._parse_with_rules(message)
+        # 注意：这个方法是同步的，不能调用异步的LLM服务
+        # 直接使用规则引擎
+        return self._parse_with_rules(message)
 
     def parse_with_fallback(self, message: str, task_name: Optional[str] = None) -> Dict[str, Any]:
         """

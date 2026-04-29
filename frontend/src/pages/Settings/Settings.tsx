@@ -90,6 +90,8 @@ export default function Settings() {
   });
 
   const watchedProvider = Form.useWatch('llm_provider', reminderForm);
+  const watchedEnabled = Form.useWatch('enabled', reminderForm);
+  const watchedStreamEnabled = Form.useWatch('dingtalk_stream_enabled', reminderForm);
 
   useEffect(() => {
     if (user) {
@@ -115,6 +117,9 @@ export default function Settings() {
             enabled: res.data.enabled,
             dingtalk_webhook: res.data.dingtalk_webhook,
             dingtalk_secret: res.data.dingtalk_secret,
+            dingtalk_client_id: res.data.dingtalk_client_id,
+            dingtalk_client_secret: res.data.dingtalk_client_secret,
+            dingtalk_stream_enabled: res.data.dingtalk_stream_enabled || false,
             llm_provider: res.data.llm_provider === 'custom' ? 'custom' : 'minimax',
             llm_api_key: res.data.llm_api_key,
             llm_model: res.data.llm_model,
@@ -166,6 +171,9 @@ export default function Settings() {
         enabled: values.enabled,
         dingtalk_webhook: values.dingtalk_webhook,
         dingtalk_secret: values.dingtalk_secret,
+        dingtalk_client_id: values.dingtalk_client_id,
+        dingtalk_client_secret: values.dingtalk_client_secret,
+        dingtalk_stream_enabled: values.dingtalk_stream_enabled || false,
         llm_provider: values.llm_provider,
         llm_api_key: values.llm_api_key,
         llm_model: values.llm_model,
@@ -341,11 +349,45 @@ export default function Settings() {
               <Switch checkedChildren="已启用" unCheckedChildren="已禁用" />
             </Form.Item>
 
-            {Form.useWatch('enabled', reminderForm) && (
+            {watchedEnabled && (
               <>
-                <Divider orientation="left">基础设置</Divider>
-                <Form.Item label="钉钉 Webhook 地址" name="dingtalk_webhook" tooltip="在钉钉群聊中添加机器人，获取Webhook地址并复制到这里"><Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" /></Form.Item>
-                <Form.Item label="钉钉密钥（可选）" name="dingtalk_secret" tooltip="开启机器人安全设置后需要填写密钥"><Input.Password placeholder="SEC开头的密钥（可选）" /></Form.Item>
+                <Divider orientation="left">钉钉配置</Divider>
+                <Alert 
+                  message="钉钉接入方式" 
+                  description={
+                    <div>
+                      <p><strong>Webhook模式：</strong>适用于有公网IP的服务器，钉钉主动推送消息到你的服务器</p>
+                      <p><strong>Stream模式：</strong>适用于本地开发环境（无需公网IP），通过WebSocket主动连接钉钉服务器</p>
+                    </div>
+                  } 
+                  type="info" 
+                  showIcon 
+                  style={{ marginBottom: 16 }} 
+                />
+                
+                <Form.Item label="启用Stream模式" name="dingtalk_stream_enabled" valuePropName="checked" tooltip="开启后使用Stream模式连接钉钉，无需公网IP">
+                  <Switch checkedChildren="Stream模式" unCheckedChildren="Webhook模式" />
+                </Form.Item>
+
+                {watchedStreamEnabled ? (
+                  <>
+                    <Form.Item label="钉钉 Client ID" name="dingtalk_client_id" tooltip="从钉钉开放平台获取AppKey" rules={[{ required: true, message: '请输入Client ID' }]}>
+                      <Input placeholder="输入钉钉AppKey" />
+                    </Form.Item>
+                    <Form.Item label="钉钉 Client Secret" name="dingtalk_client_secret" tooltip="从钉钉开放平台获取AppSecret" rules={[{ required: true, message: '请输入Client Secret' }]}>
+                      <Input.Password placeholder="输入钉钉AppSecret" />
+                    </Form.Item>
+                  </>
+                ) : (
+                  <>
+                    <Form.Item label="钉钉 Webhook 地址" name="dingtalk_webhook" tooltip="在钉钉群聊中添加机器人，获取Webhook地址并复制到这里">
+                      <Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" />
+                    </Form.Item>
+                    <Form.Item label="钉钉密钥（可选）" name="dingtalk_secret" tooltip="开启机器人安全设置后需要填写密钥">
+                      <Input.Password placeholder="SEC开头的密钥（可选）" />
+                    </Form.Item>
+                  </>
+                )}
 
                 <Divider orientation="left">大模型配置</Divider>
                 <Form.Item label="大模型提供商" name="llm_provider" tooltip="选择要使用的大模型服务商">

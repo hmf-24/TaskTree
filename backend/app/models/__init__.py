@@ -223,6 +223,10 @@ class UserNotificationSettings(Base):
     dingtalk_secret = Column(String(100), comment="钉钉签名密钥")
     dingtalk_user_id = Column(String(100), unique=True, index=True, comment="钉钉用户 ID")
     dingtalk_name = Column(String(100), comment="钉钉用户昵称")
+    # 钉钉Stream模式配置
+    dingtalk_client_id = Column(String(100), comment="钉钉AppKey（Stream模式）")
+    dingtalk_client_secret_encrypted = Column(Text, comment="钉钉AppSecret（加密，Stream模式）")
+    dingtalk_stream_enabled = Column(Boolean, default=False, comment="是否启用钉钉Stream模式")
     # 大模型配置（llm_api_key加密存储）
     llm_provider = Column(String(20), comment="大模型提供商")
     llm_api_key_encrypted = Column(Text, comment="大模型API Key（加密）")

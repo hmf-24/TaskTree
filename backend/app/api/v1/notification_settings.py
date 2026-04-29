@@ -79,6 +79,9 @@ async def get_notification_settings(
             user_id=current_user.id,
             dingtalk_webhook=None,
             dingtalk_secret=None,
+            dingtalk_client_id=None,
+            dingtalk_client_secret=None,
+            dingtalk_stream_enabled=False,
             llm_provider="minmax",
             llm_api_key=None,
             llm_model=None,
@@ -95,6 +98,9 @@ async def get_notification_settings(
 
     # 解密 API Key
     api_key = decrypt_api_key(settings.llm_api_key_encrypted) if settings.llm_api_key_encrypted else None
+    
+    # 解密钉钉Client Secret
+    client_secret = decrypt_api_key(settings.dingtalk_client_secret_encrypted) if settings.dingtalk_client_secret_encrypted else None
 
     # 解析 analysis_config JSON
     analysis_config = json.loads(settings.analysis_config) if settings.analysis_config else None
@@ -104,6 +110,9 @@ async def get_notification_settings(
         user_id=settings.user_id,
         dingtalk_webhook=settings.dingtalk_webhook,
         dingtalk_secret=settings.dingtalk_secret,
+        dingtalk_client_id=settings.dingtalk_client_id,
+        dingtalk_client_secret=client_secret,
+        dingtalk_stream_enabled=settings.dingtalk_stream_enabled or False,
         llm_provider=settings.llm_provider,
         llm_api_key=api_key,
         llm_model=settings.llm_model,
@@ -123,6 +132,9 @@ async def create_or_update_settings(
     db: AsyncSession = Depends(get_db)
 ):
     """创建或更新用户的通知设置"""
+    import asyncio
+    from app.services.dingtalk_stream_client import restart_user_stream_client
+    
     result = await db.execute(
         select(UserNotificationSettings).where(
             UserNotificationSettings.user_id == current_user.id
@@ -138,6 +150,16 @@ async def create_or_update_settings(
             settings.dingtalk_webhook = settings_data.dingtalk_webhook
         if settings_data.dingtalk_secret is not None:
             settings.dingtalk_secret = settings_data.dingtalk_secret
+        if settings_data.dingtalk_user_id is not None:
+            settings.dingtalk_user_id = settings_data.dingtalk_user_id
+        if settings_data.dingtalk_name is not None:
+            settings.dingtalk_name = settings_data.dingtalk_name
+        if settings_data.dingtalk_client_id is not None:
+            settings.dingtalk_client_id = settings_data.dingtalk_client_id
+        if settings_data.dingtalk_client_secret is not None:
+            settings.dingtalk_client_secret_encrypted = encrypt_api_key(settings_data.dingtalk_client_secret)
+        if settings_data.dingtalk_stream_enabled is not None:
+            settings.dingtalk_stream_enabled = settings_data.dingtalk_stream_enabled
         if settings_data.llm_provider is not None:
             settings.llm_provider = settings_data.llm_provider
         if settings_data.llm_api_key is not None:
@@ -160,6 +182,11 @@ async def create_or_update_settings(
             user_id=current_user.id,
             dingtalk_webhook=settings_data.dingtalk_webhook,
             dingtalk_secret=settings_data.dingtalk_secret,
+            dingtalk_user_id=settings_data.dingtalk_user_id,
+            dingtalk_name=settings_data.dingtalk_name,
+            dingtalk_client_id=settings_data.dingtalk_client_id,
+            dingtalk_client_secret_encrypted=encrypt_api_key(settings_data.dingtalk_client_secret) if settings_data.dingtalk_client_secret else None,
+            dingtalk_stream_enabled=settings_data.dingtalk_stream_enabled,
             llm_provider=settings_data.llm_provider or "minmax",
             llm_api_key_encrypted=encrypt_api_key(settings_data.llm_api_key) if settings_data.llm_api_key else None,
             llm_model=settings_data.llm_model,
@@ -172,6 +199,14 @@ async def create_or_update_settings(
         db.add(settings)
 
     await db.commit()
+    await db.refresh(settings)
+    
+    # 如果Stream配置有变化，重启Stream客户端
+    try:
+        from app.main import app
+        asyncio.create_task(restart_user_stream_client(app, current_user.id, settings))
+    except Exception as e:
+        print(f"⚠️  重启Stream客户端失败: {e}")
 
     return MessageResponse(message="设置保存成功")
 

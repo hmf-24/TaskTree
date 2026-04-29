@@ -357,6 +357,12 @@ class ReminderRule(BaseModel):
 class UserNotificationSettingsBase(BaseModel):
     dingtalk_webhook: Optional[str] = None
     dingtalk_secret: Optional[str] = None
+    dingtalk_user_id: Optional[str] = None
+    dingtalk_name: Optional[str] = None
+    # 钉钉Stream模式配置
+    dingtalk_client_id: Optional[str] = None
+    dingtalk_client_secret: Optional[str] = None
+    dingtalk_stream_enabled: bool = False
     # 大模型配置
     llm_provider: Optional[str] = "minmax"  # minmax, openai, anthropic
     llm_api_key: Optional[str] = None
@@ -376,6 +382,11 @@ class UserNotificationSettingsCreate(UserNotificationSettingsBase):
 class UserNotificationSettingsUpdate(BaseModel):
     dingtalk_webhook: Optional[str] = None
     dingtalk_secret: Optional[str] = None
+    dingtalk_user_id: Optional[str] = None
+    dingtalk_name: Optional[str] = None
+    dingtalk_client_id: Optional[str] = None
+    dingtalk_client_secret: Optional[str] = None
+    dingtalk_stream_enabled: Optional[bool] = None
     llm_provider: Optional[str] = None
     llm_api_key: Optional[str] = None
     llm_model: Optional[str] = None

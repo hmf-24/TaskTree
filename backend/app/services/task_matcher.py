@@ -134,11 +134,24 @@ class TaskMatcherService:
         
         # 5. 优先匹配最近更新的任务 (权重: +10)
         if task.updated_at:
-            days_since_update = (datetime.now(timezone.utc) - task.updated_at).days
-            if days_since_update == 0:
-                score += 10
-            elif days_since_update <= 7:
-                score += 5
+            try:
+                # 确保两个datetime都有时区信息
+                now_utc = datetime.now(timezone.utc)
+                task_updated = task.updated_at
+                
+                # 如果task.updated_at没有时区信息，添加UTC时区
+                if task_updated.tzinfo is None:
+                    task_updated = task_updated.replace(tzinfo=timezone.utc)
+                
+                days_since_update = (now_utc - task_updated).days
+                if days_since_update == 0:
+                    score += 10
+                elif days_since_update <= 7:
+                    score += 5
+            except Exception as e:
+                # 如果时间计算失败，跳过这个加分项
+                print(f"⚠️  计算任务更新时间失败: {e}")
+                pass
         
         return score
     

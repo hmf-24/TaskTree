@@ -21,6 +21,10 @@ services:
       - tasktree-uploads:/app/uploads
       - tasktree-logs:/app/logs
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 114.114.114.114
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

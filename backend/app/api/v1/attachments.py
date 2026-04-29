@@ -24,6 +24,68 @@ from app.utils.file_utils import (
 router = APIRouter(prefix="/attachments", tags=["attachments"])
 
 
+@router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    通用文件上传接口（用于头像等）
+    
+    - 验证文件类型和大小
+    - 生成唯一文件名
+    - 保存文件到文件系统
+    - 返回文件URL
+    """
+    # 添加日志以便调试
+    print(f"[DEBUG] Uploading file: {file.filename}, content_type: {file.content_type}")
+    
+    # Step 1: 验证文件类型
+    is_valid_type, type_message = validate_file_type(file.filename)
+    if not is_valid_type:
+        print(f"[DEBUG] File type validation failed: {type_message}")
+        raise HTTPException(status_code=400, detail=type_message)
+    
+    # Step 2: 读取文件内容以获取大小
+    file_content = await file.read()
+    file_size = len(file_content)
+    
+    print(f"[DEBUG] File size: {file_size} bytes")
+    
+    # Step 3: 验证文件大小
+    is_valid_size, size_message = validate_file_size(file_size)
+    if not is_valid_size:
+        print(f"[DEBUG] File size validation failed: {size_message}")
+        raise HTTPException(status_code=400, detail=size_message)
+    
+    # Step 4: 生成唯一文件名
+    unique_filename = generate_unique_filename(file.filename)
+    
+    # Step 5: 创建目录结构（通用上传目录）
+    upload_dir = Path(f"uploads/general/{current_user.id}")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Step 6: 保存文件到文件系统
+    file_path = upload_dir / unique_filename
+    with open(file_path, "wb") as f:
+        f.write(file_content)
+    
+    # Step 7: 生成访问URL（使用完整的后端URL）
+    file_url = f"http://localhost:8000/uploads/general/{current_user.id}/{unique_filename}"
+    
+    # Step 8: 返回标准格式响应
+    return {
+        "code": 200,
+        "message": "上传成功",
+        "data": {
+            "filename": file.filename,
+            "url": file_url,
+            "size": file_size,
+            "mime_type": file.content_type
+        }
+    }
+
+
 async def get_task_with_access(task_id: int, db: AsyncSession, current_user: User) -> Task:
     """获取任务并验证当前用户是否有权限访问该任务所属项目。
 
