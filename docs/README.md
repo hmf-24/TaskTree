@@ -77,6 +77,31 @@ docs/
 
 建议保留 `.kiro/specs` 目录作为开发历史记录，同时在 `docs/功能文档/` 中维护整合后的文档。
 
+## 🚀 快速开始
+
+### 新功能
+
+#### 钉钉Stream模式客户端 ✨
+现在支持在本地开发环境使用钉钉机器人，无需公网IP！
+
+**配置步骤**：
+1. 访问 [钉钉开放平台](https://open-dev.dingtalk.com/) 创建应用
+2. 编辑 `.env` 文件，添加钉钉凭证：
+   ```bash
+   DINGTALK_STREAM_ENABLED=true
+   DINGTALK_CLIENT_ID=你的AppKey
+   DINGTALK_CLIENT_SECRET=你的AppSecret
+   ```
+3. 重启后端：`docker-compose restart backend`
+4. 在钉钉群聊中@机器人使用
+
+详见 [钉钉Stream模式配置指南](技术/钉钉Stream模式.md)
+
+#### 头像上传功能 📸
+支持直接上传头像图片，无需手动输入URL。
+
+详见 [功能文档](功能文档/)
+
 ## 快速导航
 
 ### 新手入门
