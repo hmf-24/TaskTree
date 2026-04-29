@@ -67,10 +67,10 @@ export default function NotificationPanel() {
           display: 'flex',
           justifyContent: 'space-between',
           padding: '8px 0',
-          borderBottom: '1px solid #f0f0f0',
+          borderBottom: '1px solid var(--color-border)',
         }}
       >
-        <span style={{ fontWeight: 600 }}>通知</span>
+        <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--color-ink)' }}>通知</span>
         {unreadCount > 0 && (
           <Button type="link" size="small" onClick={handleMarkAllRead} icon={<CheckOutlined />}>
             全部已读
@@ -91,7 +91,7 @@ export default function NotificationPanel() {
           renderItem={(item: Notification) => (
             <List.Item
               style={{
-                background: item.is_read ? 'transparent' : '#e6f7ff',
+                background: item.is_read ? 'transparent' : 'var(--color-canvas-deep)',
                 padding: '8px 12px',
                 cursor: item.is_read ? 'default' : 'pointer',
               }}
@@ -102,8 +102,8 @@ export default function NotificationPanel() {
                 title={<span style={{ fontSize: 13 }}>{item.title || '系统通知'}</span>}
                 description={
                   <div>
-                    <div style={{ fontSize: 12, color: '#666' }}>{item.content}</div>
-                    <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: 'var(--color-ink-secondary)' }}>{item.content}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-ink-tertiary)', marginTop: 2 }}>
                       {new Date(item.created_at).toLocaleString('zh-CN')}
                     </div>
                   </div>

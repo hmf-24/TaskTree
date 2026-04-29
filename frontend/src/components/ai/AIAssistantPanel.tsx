@@ -181,7 +181,7 @@ export default function AIAssistantPanel({
         open={open}
         onClose={onClose}
         width={720}
-        bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%' }}
+        styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--color-canvas)' } }}
       >
         {initializing ? (
           <div className="flex items-center justify-center h-full">
@@ -195,16 +195,20 @@ export default function AIAssistantPanel({
                 <MessageBubble key={idx} message={msg} onAction={handleAction} />
               ))}
               {loading && (
-                <div className="flex items-center gap-2 text-gray-400">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-ink-tertiary)', fontSize: 13 }}>
                   <Spin size="small" />
-                  <span>AI 正在思考...</span>
+                  <span>AI 正在思考…</span>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* 输入框 */}
-            <div className="border-t p-4">
+            <div style={{
+              borderTop: '1px solid var(--color-border)',
+              padding: 16,
+              background: 'var(--color-surface)',
+            }}>
               <div className="flex gap-2">
                 <TextArea
                   value={inputValue}

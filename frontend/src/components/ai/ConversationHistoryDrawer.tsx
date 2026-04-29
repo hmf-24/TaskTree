@@ -60,8 +60,10 @@ export default function ConversationHistoryDrawer({
                   onSelect(conv.id);
                   onClose();
                 }}
-                style={{ cursor: 'pointer' }}
                 className="hover:bg-gray-50"
+                style={{ cursor: 'pointer', transition: 'background var(--duration-fast) var(--ease-smooth)' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-surface-hover)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 <List.Item.Meta
                   title={getConversationTitle(conv)}

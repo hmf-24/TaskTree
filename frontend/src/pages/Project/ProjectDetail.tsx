@@ -72,12 +72,12 @@ import DependencyGraph from '../../components/dependency/DependencyGraph';
 import AIAssistantPanel from '../../components/ai/AIAssistantPanel';
 import type { Task, Dependency } from '../../types';
 
-// 状态图标映射
+// 状态图标映射（柔和色系）
 const STATUS_ICONS: Record<string, React.ReactNode> = {
-  pending: <ClockCircleOutlined style={{ color: '#8c8c8c' }} />,
-  in_progress: <PlayCircleOutlined style={{ color: '#1890ff' }} />,
-  completed: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
-  cancelled: <StopOutlined style={{ color: '#8c8c8c' }} />,
+  pending: <ClockCircleOutlined style={{ color: 'var(--color-ink-tertiary)' }} />,
+  in_progress: <PlayCircleOutlined style={{ color: '#1F6C9F' }} />,
+  completed: <CheckCircleOutlined style={{ color: '#346538' }} />,
+  cancelled: <StopOutlined style={{ color: 'var(--color-ink-tertiary)' }} />,
 };
 
 // 状态流转顺序
@@ -206,52 +206,71 @@ function SortableTaskItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`mb-2 ${isSelected ? 'ring-2 ring-blue-500 rounded' : ''}`}
       {...attributes}
     >
-      <Card
-        size="small"
-        className="bg-white transition-colors"
-        hoverable
+      <div
+        className="glass-panel"
+        style={{
+          background: isSelected ? 'rgba(255,255,255,0.1)' : 'var(--color-surface)',
+          border: `1px solid ${isSelected ? 'rgba(255,255,255,0.5)' : 'var(--color-border)'}`,
+          borderRadius: 'var(--radius-card)',
+          padding: '8px 12px',
+          marginBottom: 6,
+          cursor: 'pointer',
+          transition: 'all var(--duration-fast) var(--ease-smooth)',
+          boxShadow: isSelected ? '0 0 0 2px rgba(17,17,17,0.08)' : 'none',
+        }}
         onClick={(e) => {
           e.stopPropagation();
           onSelect?.(task);
         }}
+        onMouseEnter={(e) => {
+          if (!isSelected) {
+            (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--color-border-strong)';
+            (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-card)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected) {
+            (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--color-border)';
+            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+          }
+        }}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0 }}>
-            <span {...listeners} style={{ cursor: 'grab', color: '#bfbfbf', fontSize: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+            <span {...listeners} style={{ cursor: 'grab', color: 'var(--color-ink-tertiary)', fontSize: 14 }}>
               <HolderOutlined />
             </span>
-            <Tooltip title={`点击切换为: ${STATUS_LABELS[nextStatus]}`}>
+            <Tooltip title={`切换为: ${STATUS_LABELS[nextStatus]}`}>
               <span
-                style={{ cursor: 'pointer', fontSize: 16 }}
-                onClick={() => onStatusChange(task, nextStatus)}
+                style={{ cursor: 'pointer', fontSize: 15, lineHeight: 1 }}
+                onClick={(e) => { e.stopPropagation(); onStatusChange(task, nextStatus); }}
               >
                 {STATUS_ICONS[task.status]}
               </span>
             </Tooltip>
             <span
-              className="font-medium"
               style={{
                 cursor: 'pointer',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                color: task.status === 'completed' ? '#8c8c8c' : 'inherit',
+                color: task.status === 'completed' ? 'var(--color-ink-tertiary)' : 'var(--color-ink)',
+                fontSize: 13,
+                fontWeight: 500,
               }}
-              onClick={() => onOpenDetail(task)}
+              onClick={(e) => { e.stopPropagation(); onOpenDetail(task); }}
             >
               {task.name}
             </span>
           </div>
           <Space size={4}>
-            {/* 显示任务标签 */}
             {task.tags && task.tags.length > 0 && (
               <>
                 {task.tags.map((tag) => (
-                  <Tag key={tag.id} color={tag.color} style={{ margin: 0, fontSize: 12 }}>
+                  <Tag key={tag.id} color={tag.color} style={{ margin: 0, fontSize: 11 }}>
                     {tag.name}
                   </Tag>
                 ))}
@@ -263,25 +282,25 @@ function SortableTaskItem({
             <Tag color={STATUS_COLORS[task.status]} style={{ margin: 0 }}>
               {STATUS_LABELS[task.status]}
             </Tag>
-            <Progress type="circle" percent={task.progress} size={28} />
-            {/* 展开/收起按钮 */}
+            <Progress type="circle" percent={task.progress} size={24} />
             {task.children && task.children.length > 0 && (
               <Button
                 type="text"
                 size="small"
                 icon={expanded ? <MinusSquareOutlined /> : <PlusSquareOutlined />}
+                style={{ color: 'var(--color-ink-tertiary)' }}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleExpand?.(task);
                 }}
               />
             )}
-            {/* 快捷添加子任务 */}
             <Tooltip title="添加子任务">
               <Button
                 type="text"
                 size="small"
                 icon={<PlusOutlined />}
+                style={{ color: 'var(--color-ink-tertiary)' }}
                 onClick={(e) => {
                   e.stopPropagation();
                   onAddChild(task);
@@ -289,12 +308,17 @@ function SortableTaskItem({
               />
             </Tooltip>
             <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-              <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
+              <Button type="text" size="small" icon={<MoreOutlined />} style={{ color: 'var(--color-ink-tertiary)' }} onClick={(e) => e.stopPropagation()} />
             </Dropdown>
           </Space>
         </div>
         {task.children && task.children.length > 0 && expanded && (
-          <div className="mt-2 border-l-2 border-gray-200 pl-2">
+          <div style={{
+            marginTop: 6,
+            borderLeft: '2px solid var(--color-border)',
+            paddingLeft: 8,
+            marginLeft: 7,
+          }}>
             <SortableContext
               items={task.children.map((c) => String(c.id))}
               strategy={verticalListSortingStrategy}
@@ -318,7 +342,7 @@ function SortableTaskItem({
             </SortableContext>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
@@ -447,7 +471,7 @@ export default function ProjectDetail() {
 
   // 键盘快捷键
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: any) => {
       // 忽略输入框中的键盘事件
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
         return;
@@ -625,7 +649,7 @@ export default function ProjectDetail() {
     if (!activeTask) return;
 
     // 判断Ctrl键是否按下（嵌套模式）
-    const isCtrlPressed = activatorEvent && (activatorEvent as KeyboardEvent).ctrlKey;
+    const isCtrlPressed = activatorEvent && (activatorEvent as any).ctrlKey;
 
     // 获取目标任务
     const overTask = overData?.task;
@@ -760,16 +784,28 @@ export default function ProjectDetail() {
   ], []);
 
   return (
-    <div className="p-6">
+    <div className="page-container">
       <Helmet><title>{project?.name || '项目详情'} - TaskTree</title></Helmet>
-      <div className="flex items-center gap-4 mb-6">
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
-          返回
-        </Button>
-        <h1 className="text-2xl font-bold m-0">{project?.name || '项目详情'}</h1>
-        <Tag color="blue">{project?.task_count || 0} 个任务</Tag>
-        <Tag color="green">{project?.completed_count || 0} 已完成</Tag>
-        
+
+      {/* 页面头部 */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        marginBottom: 24,
+      }}>
+        <Button
+          type="text"
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate('/')}
+          style={{ color: 'var(--color-ink-secondary)' }}
+        />
+        <div style={{ flex: 1 }}>
+          <h1 className="page-title" style={{ marginBottom: 2 }}>{project?.name || '项目详情'}</h1>
+          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--color-ink-tertiary)' }}>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{project?.task_count || 0} 个任务</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{project?.completed_count || 0} 已完成</span>
+          </div>
+        </div>
+
         {/* 项目菜单 */}
         <Dropdown
           menu={{
@@ -778,7 +814,7 @@ export default function ProjectDetail() {
                 key: 'rename',
                 label: '修改项目名称',
                 onClick: () => {
-                  const newName = prompt('请输入新的项目名称:', project?.name);
+                  const newName = window.prompt('请输入新的项目名称:', project?.name);
                   if (newName && newName.trim()) {
                     projectsAPI.update(Number(id), { name: newName.trim() })
                       .then(() => {
@@ -795,7 +831,6 @@ export default function ProjectDetail() {
                 key: 'settings',
                 label: '项目设置',
                 onClick: () => {
-                  // 可以在这里添加项目设置功能
                   message.info('项目设置功能开发中...');
                 }
               }
@@ -803,32 +838,32 @@ export default function ProjectDetail() {
           }}
           trigger={['click']}
         >
-          <Button type="text" icon={<MoreOutlined />} />
+          <Button type="text" icon={<MoreOutlined />} style={{ color: 'var(--color-ink-tertiary)' }} />
         </Dropdown>
       </div>
 
-      {/* 工具栏 - 响应式布局 */}
-      <div className="mb-4">
+      {/* 工具栏 */}
+      <div style={{
+        marginBottom: 20,
+        paddingBottom: 16,
+        borderBottom: '1px solid var(--color-border)',
+      }}>
         {/* 移动端：垂直堆叠 */}
         <div className="flex flex-col gap-4 md:hidden">
-          {/* 核心操作区 */}
           <div className="flex flex-col gap-2">
-            <span className="text-xs text-gray-500 font-medium">核心操作</span>
+            <span className="section-label">核心操作</span>
             <Space wrap>
               <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
                 添加任务
               </Button>
               <Button 
-                type="primary" 
-                style={{ background: '#722ed1', borderColor: '#722ed1' }} 
                 onClick={() => setAiModalVisible(true)}
+                icon={<RobotOutlined />}
               >
-                ✨ AI智能创建
+                AI智能创建
               </Button>
               <Button
-                type="primary"
                 icon={<RobotOutlined />}
-                style={{ background: '#52c41a', borderColor: '#52c41a' }}
                 onClick={() => {
                   setAiMode('analyze');
                   setAiPanelOpen(true);
@@ -839,9 +874,8 @@ export default function ProjectDetail() {
             </Space>
           </div>
 
-          {/* 视图切换区 */}
           <div className="flex flex-col gap-2">
-            <span className="text-xs text-gray-500 font-medium">视图切换</span>
+            <span className="section-label">视图切换</span>
             <Segmented
               options={viewOptions}
               value={viewType}
@@ -850,9 +884,8 @@ export default function ProjectDetail() {
             />
           </div>
 
-          {/* 工具区 */}
           <div className="flex flex-col gap-2">
-            <span className="text-xs text-gray-500 font-medium">工具</span>
+            <span className="section-label">工具</span>
             <Space wrap>
               <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
                 标签管理
@@ -866,10 +899,9 @@ export default function ProjectDetail() {
             </Space>
           </div>
 
-          {/* 批量操作区（如果有选中项） */}
           {selectedIds.size > 0 && (
             <div className="flex flex-col gap-2">
-              <span className="text-xs text-gray-500 font-medium">批量操作</span>
+              <span className="section-label">批量操作</span>
               <Space wrap>
                 <Button onClick={() => {
                   Modal.confirm({
@@ -879,7 +911,9 @@ export default function ProjectDetail() {
                       for (const id of selectedIds) {
                         try {
                           await tasksAPI.delete(id, false);
-                        } catch (e) {}
+                        } catch (e) {
+                          // ignore
+                        }
                       }
                       message.success(`已删除 ${selectedIds.size} 个任务`);
                       setSelectedIds(new Set());
@@ -902,23 +936,19 @@ export default function ProjectDetail() {
 
         {/* 桌面端：水平布局 */}
         <div className="hidden md:flex md:justify-between md:items-center">
-          <Space size="large">
-            {/* 核心操作区 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Space>
               <Button type="primary" icon={<PlusOutlined />} onClick={() => handleAddTask()}>
                 添加任务
               </Button>
               <Button 
-                type="primary" 
-                style={{ background: '#722ed1', borderColor: '#722ed1' }} 
                 onClick={() => setAiModalVisible(true)}
+                icon={<RobotOutlined />}
               >
-                ✨ AI智能创建
+                AI智能创建
               </Button>
               <Button
-                type="primary"
                 icon={<RobotOutlined />}
-                style={{ background: '#52c41a', borderColor: '#52c41a' }}
                 onClick={() => {
                   setAiMode('analyze');
                   setAiPanelOpen(true);
@@ -936,7 +966,9 @@ export default function ProjectDetail() {
                         for (const id of selectedIds) {
                           try {
                             await tasksAPI.delete(id, false);
-                          } catch (e) {}
+                          } catch (e) {
+                            // ignore
+                          }
                         }
                         message.success(`已删除 ${selectedIds.size} 个任务`);
                         setSelectedIds(new Set());
@@ -956,23 +988,21 @@ export default function ProjectDetail() {
               )}
             </Space>
 
-            {/* 视图切换区 */}
             <Segmented
               options={viewOptions}
               value={viewType}
               onChange={(v) => setViewType(v as string)}
             />
-          </Space>
+          </div>
 
-          {/* 工具区 */}
           <Space>
-            <Button icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
-              标签管理
+            <Button size="small" icon={<TagOutlined />} onClick={() => setTagManagerOpen(true)}>
+              标签
             </Button>
-            <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
+            <Button size="small" icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
               导出
             </Button>
-            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+            <Button size="small" icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
               导入
             </Button>
           </Space>
@@ -1009,16 +1039,18 @@ export default function ProjectDetail() {
             </SortableContext>
             <DragOverlay>
               {activeTask ? (
-                <Card
-                  size="small"
-                  className="bg-blue-50 shadow-lg"
-                  style={{ opacity: 0.9, width: 'auto' }}
+                <div
+                  className="glass-panel"
+                  style={{
+                    padding: '8px 14px',
+                    opacity: 0.95,
+                  }}
                 >
-                  <div className="flex items-center gap-2">
-                    <HolderOutlined />
-                    <span className="font-medium">{activeTask.name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <HolderOutlined style={{ color: 'var(--color-ink-tertiary)' }} />
+                    <span style={{ fontWeight: 500, fontSize: 13 }}>{activeTask.name}</span>
                   </div>
-                </Card>
+                </div>
               ) : null}
             </DragOverlay>
           </DndContext>
@@ -1216,8 +1248,9 @@ function DraggableKanbanCard({
       <Card
         size="small"
         hoverable
+        className="glass-panel"
         onClick={() => onOpenDetail(task)}
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: 'pointer', border: '1px solid rgba(255, 255, 255, 0.1)' }}
       >
         <div style={{ marginBottom: 8 }}>
           <span className="font-medium">{task.name}</span>
@@ -1274,10 +1307,10 @@ function KanbanView({
   flatten(tasks);
 
   const columns = [
-    { key: 'pending', title: '待办', color: '#8c8c8c' },
-    { key: 'in_progress', title: '进行中', color: '#1890ff' },
-    { key: 'completed', title: '已完成', color: '#52c41a' },
-    { key: 'cancelled', title: '已取消', color: '#ff4d4f' },
+    { key: 'pending', title: '待办', color: '#A3A3A0' },
+    { key: 'in_progress', title: '进行中', color: '#1F6C9F' },
+    { key: 'completed', title: '已完成', color: '#346538' },
+    { key: 'cancelled', title: '已取消', color: '#9F2F2D' },
   ];
 
   const sensors = useSensors(
@@ -1333,7 +1366,7 @@ function KanbanView({
                     />
                   ))}
                   {colTasks.length === 0 && (
-                    <div style={{ textAlign: 'center', color: '#bfbfbf', padding: 24 }}>暂无任务</div>
+                    <div style={{ textAlign: 'center', color: 'var(--color-ink-tertiary)', padding: 24, fontSize: 13 }}>暂无任务</div>
                   )}
                 </div>
               </SortableContext>
@@ -1357,13 +1390,14 @@ function KanbanColumn({ colKey, color, title, count, children }: {
   return (
     <div
       ref={setNodeRef}
+      className="glass-panel"
       style={{
-        background: isOver ? '#e6f7ff' : '#fafafa',
-        borderRadius: 8,
-        padding: 12,
+        background: isOver ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 'var(--radius-card)',
+        padding: 14,
         minHeight: 300,
-        transition: 'background 0.2s',
-        border: isOver ? '2px dashed #1890ff' : '2px solid transparent',
+        transition: 'all var(--duration-normal) var(--ease-smooth)',
+        border: isOver ? '2px dashed var(--color-border-strong)' : '2px solid transparent',
       }}
     >
       <div
@@ -1372,12 +1406,17 @@ function KanbanColumn({ colKey, color, title, count, children }: {
           alignItems: 'center',
           gap: 8,
           marginBottom: 12,
-          fontWeight: 600,
+          fontWeight: 500,
+          fontSize: 13,
         }}
       >
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-        <span>{title}</span>
-        <Tag style={{ margin: 0 }}>{count}</Tag>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: color }} />
+        <span style={{ color: 'var(--color-ink)' }}>{title}</span>
+        <span style={{
+          fontSize: 11,
+          color: 'var(--color-ink-tertiary)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>{count}</span>
       </div>
       {children}
     </div>
@@ -1417,7 +1456,8 @@ function ListView({
           style={{
             paddingLeft: record.depth * 20,
             cursor: 'pointer',
-            color: '#1890ff',
+            color: 'var(--color-ink)',
+            fontWeight: 500,
             textDecoration: record.status === 'completed' ? 'line-through' : 'none',
           }}
           onClick={() => onOpenDetail(record)}

@@ -38,6 +38,6 @@ export function downloadFile(url: string, filename: string): void {
   
   // 如果 URL 是 Blob URL，释放内存
   if (url.startsWith('blob:')) {
-    URL.revokeObjectURL(url);
+    window.URL.revokeObjectURL(url);
   }
 }

@@ -29,10 +29,10 @@ export default function DependencyGraph({ tasks, dependencies, onTaskClick }: De
   // 节点和边的数据结构
   const { nodes: initNodes, edges: initEdges } = useMemo(() => {
     const statusColors: Record<string, string> = {
-      pending: '#d9d9d9',
-      in_progress: '#1890ff',
-      completed: '#52c41a',
-      cancelled: '#ff4d4f',
+      pending: '#A3A3A0',
+      in_progress: '#1F6C9F',
+      completed: '#346538',
+      cancelled: '#9F2F2D',
     };
 
     // 使用Dagre进行自动布局
@@ -156,10 +156,10 @@ export default function DependencyGraph({ tasks, dependencies, onTaskClick }: De
       source: String(dep.task_id),
       target: String(dep.dependent_task_id),
       animated: true,
-      style: { stroke: '#1890ff' },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#1890ff' },
+      style: { stroke: '#A3A3A0' },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#A3A3A0' },
       label: showLabels ? '依赖' : undefined,
-      labelStyle: { fontSize: 11, fill: '#999' },
+      labelStyle: { fontSize: 11, fill: '#A3A3A0' },
     }));
 
     return { nodes: taskNodes, edges: depEdges };
@@ -173,14 +173,14 @@ export default function DependencyGraph({ tasks, dependencies, onTaskClick }: De
   }, [onTaskClick]);
 
   if (tasks.length === 0) {
-    return <div style={{ textAlign: 'center', padding: 48, color: '#999' }}>暂无任务数据</div>;
+    return <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-ink-tertiary)', fontSize: 13 }}>暂无任务数据</div>;
   }
 
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
         <Space>
-          <span style={{ fontSize: 13, color: '#666' }}>布局:</span>
+          <span style={{ fontSize: 12, color: 'var(--color-ink-tertiary)' }}>布局:</span>
           <Select
             value={layoutType}
             onChange={(v) => setLayoutType(v)}
@@ -203,7 +203,7 @@ export default function DependencyGraph({ tasks, dependencies, onTaskClick }: De
           />
         </Space>
       </div>
-      <div style={{ width: '100%', height: 500, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+      <div style={{ width: '100%', height: 500, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)' }}>
         <ReactFlow
           nodes={initNodes}
           edges={initEdges}

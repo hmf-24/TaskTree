@@ -177,7 +177,6 @@ export default function TaskDetailDrawer({
           <Button
             icon={<RobotOutlined />}
             onClick={() => setAiPanelOpen(true)}
-            style={{ color: '#52c41a', borderColor: '#52c41a' }}
           >
             AI 修改
           </Button>
@@ -248,9 +247,9 @@ export default function TaskDetailDrawer({
         </div>
 
         {/* 标签编辑 */}
-        <Divider />
+        <Divider style={{ margin: '16px 0' }} />
         <div>
-          <span style={{ fontWeight: 500, marginBottom: 8, display: 'block' }}>标签</span>
+          <span className="section-label">标签</span>
           <Space direction="vertical" style={{ width: '100%' }}>
             <Select
               mode="multiple"
@@ -303,8 +302,8 @@ export default function TaskDetailDrawer({
       {/* 评论区 */}
       {taskId && taskDetail && (
         <>
-          <Divider />
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>评论</div>
+          <Divider style={{ margin: '16px 0' }} />
+          <div className="section-label">评论</div>
           <CommentList taskId={taskId} />
         </>
       )}
@@ -312,8 +311,8 @@ export default function TaskDetailDrawer({
       {/* 附件区 */}
       {taskId && taskDetail && (
         <>
-          <Divider />
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>附件</div>
+          <Divider style={{ margin: '16px 0' }} />
+          <div className="section-label">附件</div>
           <AttachmentList taskId={taskId} onUpdate={fetchTaskDetail} />
         </>
       )}

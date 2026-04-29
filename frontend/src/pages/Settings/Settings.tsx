@@ -240,7 +240,7 @@ export default function Settings() {
     }
 
     // 检查图片尺寸比例
-    const img = new Image();
+    const img = new window.Image();
     const reader = new FileReader();
     
     reader.onload = (e) => {

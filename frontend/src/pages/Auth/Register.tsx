@@ -27,34 +27,52 @@ export default function Register() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100dvh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'transparent',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
-      <div style={{
-        width: 420,
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(20px)',
-        borderRadius: 16,
-        padding: '48px 40px 36px',
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-      }}>
+      {/* 移除固定颜色的环境光，因为全局已经有风景背景图 */}
+
+      <div
+        className="glass-panel"
+        style={{
+          width: 400,
+          padding: '44px 36px 32px',
+          position: 'relative',
+          zIndex: 1,
+          animation: 'fadeSlideUp 0.5s var(--ease-smooth)',
+        }}
+      >
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 14,
-            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+            width: 44, height: 44, borderRadius: 'var(--radius-card)',
+            background: 'var(--color-brand)',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 16, boxShadow: '0 4px 16px rgba(102, 126, 234, 0.4)',
+            marginBottom: 16,
           }}>
-            <span style={{ fontSize: 28, color: '#fff', fontWeight: 700 }}>T</span>
+            <span style={{
+              fontSize: 20, color: '#fff', fontWeight: 700,
+              fontFamily: 'var(--font-sans)',
+              letterSpacing: '-0.02em',
+            }}>T</span>
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: '#1a1a2e' }}>
+          <h1 style={{
+            fontSize: 22, fontWeight: 600, margin: 0,
+            color: 'var(--color-ink)',
+            letterSpacing: '-0.02em',
+            fontFamily: 'var(--font-sans)',
+          }}>
             创建账号
           </h1>
-          <p style={{ color: '#888', fontSize: 14, margin: '8px 0 0' }}>
+          <p style={{
+            color: 'var(--color-ink-secondary)', fontSize: 13, margin: '8px 0 0',
+            lineHeight: 1.5,
+          }}>
             注册 TaskTree，开始高效协作
           </p>
         </div>
@@ -68,16 +86,16 @@ export default function Register() {
             ]}
           >
             <Input
-              prefix={<MailOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<MailOutlined style={{ color: 'var(--color-ink-tertiary)' }} />}
               placeholder="邮箱地址"
-              style={{ borderRadius: 10, height: 46 }}
+              style={{ height: 42 }}
             />
           </Form.Item>
           <Form.Item name="nickname" rules={[{ required: true, message: '请输入昵称' }]}>
             <Input
-              prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<UserOutlined style={{ color: 'var(--color-ink-tertiary)' }} />}
               placeholder="昵称"
-              style={{ borderRadius: 10, height: 46 }}
+              style={{ height: 42 }}
             />
           </Form.Item>
           <Form.Item
@@ -92,9 +110,9 @@ export default function Register() {
             ]}
           >
             <Input.Password
-              prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<LockOutlined style={{ color: 'var(--color-ink-tertiary)' }} />}
               placeholder="密码（至少8位，包含字母和数字）"
-              style={{ borderRadius: 10, height: 46 }}
+              style={{ height: 42 }}
             />
           </Form.Item>
           <Form.Item style={{ marginBottom: 16 }}>
@@ -104,16 +122,31 @@ export default function Register() {
               loading={loading}
               block
               style={{
-                height: 46, borderRadius: 10, fontWeight: 600, fontSize: 15,
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                border: 'none', boxShadow: '0 4px 16px rgba(102, 126, 234, 0.35)',
+                height: 42, fontWeight: 600, fontSize: 14,
               }}
             >
               注册
             </Button>
           </Form.Item>
-          <div style={{ textAlign: 'center', color: '#888', fontSize: 14 }}>
-            已有账号？<Link to="/auth/login" style={{ fontWeight: 600 }}>立即登录</Link>
+          <div style={{
+            textAlign: 'center',
+            color: 'var(--color-ink-secondary)',
+            fontSize: 13,
+          }}>
+            已有账号？
+            <Link
+              to="/auth/login"
+              style={{
+                fontWeight: 600,
+                color: 'var(--color-ink)',
+                marginLeft: 4,
+                textDecoration: 'none',
+                borderBottom: '1px solid var(--color-border-strong)',
+                transition: 'border-color 0.15s var(--ease-smooth)',
+              }}
+            >
+              立即登录
+            </Link>
           </div>
         </Form>
       </div>

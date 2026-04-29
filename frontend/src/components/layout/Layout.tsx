@@ -37,7 +37,7 @@ export default function Layout() {
         onClick: () => navigate('/settings'),
       },
       {
-        type: 'divider',
+        type: 'divider' as const,
       },
       {
         key: 'logout',
@@ -62,17 +62,22 @@ export default function Layout() {
     },
   ];
 
+  const siderWidth = collapsed ? 72 : 240;
+
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
       <Sider
-        width={220}
+        width={240}
+        collapsedWidth={72}
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
         trigger={null}
         style={{
-          background: '#fff',
-          borderRight: '1px solid #f0f0f0',
+          background: 'var(--color-surface)',
+          backdropFilter: 'var(--glass-blur)',
+          WebkitBackdropFilter: 'var(--glass-blur)',
+          borderRight: '1px solid var(--color-border)',
           position: 'fixed',
           left: 0,
           top: 0,
@@ -85,30 +90,37 @@ export default function Layout() {
         {/* Logo */}
         <div
           style={{
-            height: 64,
+            height: 'var(--header-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: collapsed ? 'center' : 'flex-start',
             padding: collapsed ? '0' : '0 20px',
-            borderBottom: '1px solid #f0f0f0',
+            borderBottom: '1px solid var(--color-border)',
             cursor: 'pointer',
+            transition: 'padding 0.2s var(--ease-smooth)',
           }}
           onClick={() => navigate('/')}
         >
+          {/* Logo Mark — 深灰纯色方块，取代紫蓝渐变 */}
           <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+            width: 30, height: 30, borderRadius: 'var(--radius-button)',
+            background: 'var(--color-brand)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
+            transition: 'transform 0.2s var(--ease-smooth)',
           }}>
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>T</span>
+            <span style={{
+              color: '#000', fontWeight: 700, fontSize: 14,
+              fontFamily: 'var(--font-sans)',
+              letterSpacing: '-0.02em',
+            }}>T</span>
           </div>
           {!collapsed && (
             <span style={{
-              marginLeft: 12, fontSize: 18, fontWeight: 700,
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              marginLeft: 12, fontSize: 17, fontWeight: 600,
+              color: 'var(--color-ink)',
+              letterSpacing: '-0.02em',
+              fontFamily: 'var(--font-sans)',
             }}>
               TaskTree
             </span>
@@ -121,58 +133,107 @@ export default function Layout() {
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ borderRight: 0, flex: 1, paddingTop: 8 }}
+          style={{ borderRight: 0, flex: 1, paddingTop: 8, background: 'transparent' }}
         />
 
         {/* 底部信息 */}
         <div style={{
           padding: collapsed ? '12px 8px' : '12px 16px',
-          borderTop: '1px solid #f0f0f0',
+          borderTop: '1px solid var(--color-border)',
           textAlign: 'center',
         }}>
           {!collapsed && (
-            <Text type="secondary" style={{ fontSize: 11 }}>
+            <Text
+              style={{
+                fontSize: 11,
+                color: 'var(--color-ink-tertiary)',
+                letterSpacing: '0.02em',
+              }}
+            >
               TaskTree v1.0.0
             </Text>
           )}
         </div>
       </Sider>
 
-      <AntLayout style={{ marginLeft: collapsed ? 80 : 220, transition: 'margin-left 0.2s' }}>
+      <AntLayout style={{
+        marginLeft: siderWidth,
+        transition: 'margin-left 0.2s var(--ease-smooth)',
+      }}>
         <Header style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '0 24px',
-          background: '#fff',
-          borderBottom: '1px solid #f0f0f0',
+          background: 'var(--color-surface)',
+          backdropFilter: 'var(--glass-blur)',
+          WebkitBackdropFilter: 'var(--glass-blur)',
+          borderBottom: '1px solid var(--color-border)',
           position: 'sticky',
           top: 0,
           zIndex: 9,
-          height: 64,
+          height: 'var(--header-height)',
+          lineHeight: 'var(--header-height)',
         }}>
           <div
-            style={{ cursor: 'pointer', fontSize: 18, color: '#666', padding: 4 }}
+            style={{
+              cursor: 'pointer', fontSize: 16,
+              color: 'var(--color-ink-tertiary)',
+              padding: 4,
+              borderRadius: 'var(--radius-button)',
+              transition: 'color 0.15s var(--ease-smooth), background 0.15s var(--ease-smooth)',
+            }}
             onClick={() => setCollapsed(!collapsed)}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLDivElement).style.color = 'var(--color-ink)';
+              (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-active)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLDivElement).style.color = 'var(--color-ink-tertiary)';
+              (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+            }}
           >
             {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <NotificationPanel />
             <Dropdown menu={userMenu} placement="bottomRight">
-              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 8 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 8,
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-button)',
+                transition: 'background 0.15s var(--ease-smooth)',
+              }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-active)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+                }}
+              >
                 <Avatar
-                  size={32}
+                  size={28}
                   icon={<UserOutlined />}
                   src={user?.avatar}
-                  style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}
+                  style={{
+                    background: 'var(--color-brand)',
+                    fontSize: 12,
+                  }}
                 />
-                <span style={{ fontWeight: 500 }}>{user?.nickname || user?.email}</span>
+                <span style={{
+                  fontWeight: 500, fontSize: 13,
+                  color: 'var(--color-ink)',
+                }}>
+                  {user?.nickname || user?.email}
+                </span>
               </div>
             </Dropdown>
           </div>
         </Header>
-        <Content style={{ background: '#f5f6fa', minHeight: 'calc(100vh - 64px)' }}>
+        <Content style={{
+          background: 'var(--color-canvas)',
+          minHeight: 'calc(100vh - var(--header-height))',
+        }}>
           <Outlet />
         </Content>
       </AntLayout>

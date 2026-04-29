@@ -223,6 +223,54 @@ async def process_dingtalk_message(
         
         print(f"🔍 开始解析消息: {message_content}")
         
+        # 0. 拦截查询任务列表的意图
+        list_keywords = ["我的任务", "任务列表", "所有任务", "我有哪些任务", "查任务", "任务有哪些"]
+        msg_no_space = message_content.replace(" ", "")
+        
+        is_list_intent = False
+        for k in list_keywords:
+            if k in msg_no_space:
+                is_list_intent = True
+                break
+                
+        if not is_list_intent and message_content.strip().lower() in ["list", "ls", "任务"]:
+            is_list_intent = True
+            
+        if is_list_intent:
+            print(f"📋 识别为查询任务列表意图")
+            from sqlalchemy import or_
+            query = select(Task).where(
+                or_(Task.assignee_id == user_id),
+                Task.status.in_(['pending', 'in_progress'])
+            ).order_by(
+                Task.due_date.asc().nulls_last(),
+                Task.priority.desc()
+            ).limit(10)
+            
+            result = await db.execute(query)
+            tasks = result.scalars().all()
+            
+            if not tasks:
+                await dingtalk_service.send_message(
+                    dingtalk_user_id=dingtalk_user_id,
+                    content="🎉 您当前没有进行中或待处理的任务。",
+                    use_stream_mode=use_stream_mode,
+                    client_id=client_id,
+                    client_secret=client_secret
+                )
+            else:
+                task_list_msg = message_printer.format_task_list(tasks, show_progress=True)
+                await dingtalk_service.send_message(
+                    dingtalk_user_id=dingtalk_user_id,
+                    content=task_list_msg,
+                    msg_type="markdown",
+                    title="我的任务列表",
+                    use_stream_mode=use_stream_mode,
+                    client_id=client_id,
+                    client_secret=client_secret
+                )
+            return
+
         # 1. 使用 ProgressParserService 解析进度
         progress_parser = ProgressParserService(llm_service)
         parse_result_dict = progress_parser.parse(message=message_content)

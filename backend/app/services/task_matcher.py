@@ -127,6 +127,13 @@ class TaskMatcherService:
             # 3. 任务描述包含关键词 (权重: 60)
             elif keyword_lower in task_description:
                 score += 60
+            # 4. 反向匹配：关键词（整个句子）中包含任务名称 (权重: 70)
+            elif task_name and task_name in keyword_lower:
+                score += 70
+        
+        # 如果基础得分为 0，说明完全不匹配，不应计算加分项
+        if score == 0:
+            return 0.0
         
         # 4. 优先匹配"进行中"或"待处理"状态 (权重: +20)
         if task.status in ['in_progress', 'pending']:

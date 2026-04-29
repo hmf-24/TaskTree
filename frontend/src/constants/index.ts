@@ -27,19 +27,27 @@ export const MEMBER_ROLE = {
   VIEWER: 'viewer',
 } as const;
 
-// 状态颜色映射
+// 状态颜色映射（低饱和度马卡龙色）
 export const STATUS_COLORS: Record<string, string> = {
   pending: 'default',
-  in_progress: 'processing',
-  completed: 'success',
+  in_progress: 'blue',
+  completed: 'green',
   cancelled: 'default',
 };
 
-// 优先级颜色映射
+// 优先级颜色映射（低饱和度马卡龙色）
 export const PRIORITY_COLORS: Record<string, string> = {
-  high: 'red',
-  medium: 'orange',
-  low: 'green',
+  high: 'volcano',
+  medium: 'gold',
+  low: 'cyan',
+};
+
+// 看板列颜色（柔和色系）
+export const KANBAN_COLUMN_COLORS: Record<string, string> = {
+  pending: '#A3A3A0',
+  in_progress: '#1F6C9F',
+  completed: '#346538',
+  cancelled: '#9F2F2D',
 };
 
 // 状态标签映射
