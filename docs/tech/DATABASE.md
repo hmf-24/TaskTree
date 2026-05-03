@@ -1,0 +1,577 @@
+---
+source: 工作文档
+author: HMF
+created: 2026-04-10
+description: "TaskTree 数据库设计 v1.0，包含用户、项目、任务、通知等表结构设计"
+tags:
+  - Status/Done
+  - Type/Work/SOP
+  - Area/Lab
+  - Tech/Python
+---
+
+# 数据库设计 v1.0
+
+## 数据库概述
+
+> [!INFO]
+> 数据库类型：SQLite（异步 aiosqlite） | ORM：SQLAlchemy 2.x (异步)
+
+---
+
+## 表结构
+
+### 1. users - 用户表
+
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    nickname VARCHAR(100),
+    avatar VARCHAR(500),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_email ON users(email);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键，自增 |
+| email | VARCHAR(255) | 邮箱，唯一 |
+| password_hash | VARCHAR(255) | 密码哈希（bcrypt） |
+| nickname | VARCHAR(100) | 昵称 |
+| avatar | VARCHAR(500) | 头像URL |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+---
+
+### 2. projects - 项目表
+
+```sql
+CREATE TABLE projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    owner_id INTEGER NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    status VARCHAR(20) DEFAULT 'active',
+    is_archived BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_projects_owner ON projects(owner_id);
+CREATE INDEX idx_projects_status ON projects(status);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| name | VARCHAR(255) | 项目名称 |
+| description | TEXT | 项目描述 |
+| owner_id | INTEGER | 所有者ID |
+| start_date | DATE | 开始日期 |
+| end_date | DATE | 结束日期 |
+| status | VARCHAR(20) | 状态：active/archived |
+| is_archived | BOOLEAN | 是否归档 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+---
+
+### 3. project_members - 项目成员表
+
+```sql
+CREATE TABLE project_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role VARCHAR(20) DEFAULT 'viewer',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(project_id, user_id)
+);
+
+CREATE INDEX idx_project_members_project ON project_members(project_id);
+CREATE INDEX idx_project_members_user ON project_members(user_id);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| project_id | INTEGER | 项目ID |
+| user_id | INTEGER | 用户ID |
+| role | VARCHAR(20) | 角色：owner/editor/viewer |
+| created_at | DATETIME | 加入时间 |
+
+---
+
+### 4. tasks - 任务表
+
+```sql
+CREATE TABLE tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    parent_id INTEGER,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    assignee_id INTEGER,
+    status VARCHAR(20) DEFAULT 'pending',
+    priority VARCHAR(10) DEFAULT 'medium',
+    progress INTEGER DEFAULT 0,
+    estimated_time INTEGER,
+    actual_time INTEGER,
+    start_date DATE,
+    due_date DATE,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_tasks_project ON tasks(project_id);
+CREATE INDEX idx_tasks_parent ON tasks(parent_id);
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_assignee ON tasks(assignee_id);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| project_id | INTEGER | 项目ID |
+| parent_id | INTEGER | 父任务ID（支持无限层级） |
+| name | VARCHAR(255) | 任务名称 |
+| description | TEXT | 任务描述 |
+| assignee_id | INTEGER | 负责人ID |
+| status | VARCHAR(20) | 状态：pending/in_progress/completed/cancelled |
+| priority | VARCHAR(10) | 优先级：high/medium/low |
+| progress | INTEGER | 进度 0-100 |
+| estimated_time | INTEGER | 预计耗时（分钟） |
+| actual_time | INTEGER | 实际耗时（分钟） |
+| start_date | DATE | 开始日期 |
+| due_date | DATE | 截止日期 |
+| sort_order | INTEGER | 排序 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+---
+
+### 5. task_dependencies - 任务依赖关系表
+
+```sql
+CREATE TABLE task_dependencies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    dependent_task_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (dependent_task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    UNIQUE(task_id, dependent_task_id)
+);
+
+CREATE INDEX idx_task_dependencies_task ON task_dependencies(task_id);
+CREATE INDEX idx_task_dependencies_dependent ON task_dependencies(dependent_task_id);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| task_id | INTEGER | 前置任务ID |
+| dependent_task_id | INTEGER | 依赖任务ID |
+| created_at | DATETIME | 创建时间 |
+
+---
+
+### 6. task_tags - 任务标签表
+
+```sql
+CREATE TABLE task_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    color VARCHAR(20),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    UNIQUE(project_id, name)
+);
+
+CREATE INDEX idx_task_tags_project ON task_tags(project_id);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| project_id | INTEGER | 项目ID |
+| name | VARCHAR(50) | 标签名称 |
+| color | VARCHAR(20) | 标签颜色 |
+| created_at | DATETIME | 创建时间 |
+
+---
+
+### 7. task_tag_relations - 任务标签关联表
+
+```sql
+CREATE TABLE task_tag_relations (
+    task_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    PRIMARY KEY (task_id, tag_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES task_tags(id) ON DELETE CASCADE
+);
+```
+
+---
+
+### 8. task_comments - 任务评论表
+
+```sql
+CREATE TABLE task_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_task_comments_task ON task_comments(task_id);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| task_id | INTEGER | 任务ID |
+| user_id | INTEGER | 评论者ID |
+| content | TEXT | 评论内容 |
+| created_at | DATETIME | 创建时间 |
+
+---
+
+### 9. task_attachments - 任务附件表
+
+```sql
+CREATE TABLE task_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size INTEGER,
+    mime_type VARCHAR(100),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_task_attachments_task ON task_attachments(task_id);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| task_id | INTEGER | 任务ID |
+| user_id | INTEGER | 上传者ID |
+| filename | VARCHAR(255) | 文件名 |
+| file_path | VARCHAR(500) | 文件路径 |
+| file_size | INTEGER | 文件大小（字节） |
+| mime_type | VARCHAR(100) | 文件类型 |
+| created_at | DATETIME | 上传时间 |
+
+---
+
+### 10. notifications - 通知表
+
+```sql
+CREATE TABLE notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255),
+    content TEXT,
+    related_id INTEGER,
+    related_type VARCHAR(50),
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_read ON notifications(user_id, is_read);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| user_id | INTEGER | 接收者ID |
+| type | VARCHAR(50) | 通知类型 |
+| title | VARCHAR(255) | 标题 |
+| content | TEXT | 内容 |
+| related_id | INTEGER | 关联ID |
+| related_type | VARCHAR(50) | 关联类型 |
+| is_read | BOOLEAN | 是否已读 |
+| created_at | DATETIME | 创建时间 |
+
+---
+
+### 11. operation_logs - 操作日志表
+
+```sql
+CREATE TABLE operation_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    project_id INTEGER,
+    task_id INTEGER,
+    action VARCHAR(50) NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_operation_logs_user ON operation_logs(user_id);
+CREATE INDEX idx_operation_logs_project ON operation_logs(project_id);
+CREATE INDEX idx_operation_logs_created ON operation_logs(created_at);
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 主键 |
+| user_id | INTEGER | 操作者ID |
+| project_id | INTEGER | 项目ID |
+| task_id | INTEGER | 任务ID |
+| action | VARCHAR(50) | 操作类型 |
+| old_value | TEXT | 变更前值 |
+| new_value | TEXT | 变更后值 |
+| created_at | DATETIME | 操作时间 |
+
+---
+
+## SQLAlchemy 模型（Python）
+
+```python
+# backend/app/models.py
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime
+
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = 'users'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    nickname = Column(String(100))
+    avatar = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Project(Base):
+    __tablename__ = 'projects'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    owner_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    start_date = Column(Date)
+    end_date = Column(Date)
+    status = Column(String(20), default='active', index=True)
+    is_archived = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    owner = relationship('User')
+    members = relationship('ProjectMember', back_populates='project')
+    tasks = relationship('Task', back_populates='project', cascade='all, delete-orphan')
+
+class ProjectMember(Base):
+    __tablename__ = 'project_members'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    role = Column(String(20), default='viewer')
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (UniqueConstraint('project_id', 'user_id'),)
+    
+    project = relationship('Project', back_populates='members')
+    user = relationship('User')
+
+class Task(Base):
+    __tablename__ = 'tasks'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
+    parent_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    assignee_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), index=True)
+    status = Column(String(20), default='pending', index=True)
+    priority = Column(String(10), default='medium')
+    progress = Column(Integer, default=0)
+    estimated_time = Column(Integer)
+    actual_time = Column(Integer)
+    start_date = Column(Date)
+    due_date = Column(Date)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    project = relationship('Project', back_populates='tasks')
+    parent = relationship('Task', remote_side=[id], backref='children')
+    assignee = relationship('User')
+    dependencies = relationship('TaskDependency', foreign_keys='TaskDependency.task_id', back_populates='task')
+    dependent_on = relationship('TaskDependency', foreign_keys='TaskDependency.dependent_task_id', back_populates='dependent_task')
+
+class TaskDependency(Base):
+    __tablename__ = 'task_dependencies'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
+    dependent_task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (UniqueConstraint('task_id', 'dependent_task_id'),)
+    
+    task = relationship('Task', foreign_keys=[task_id])
+    dependent_task = relationship('Task', foreign_keys=[dependent_task_id])
+
+class TaskTag(Base):
+    __tablename__ = 'task_tags'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = Column(String(50), nullable=False)
+    color = Column(String(20))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (UniqueConstraint('project_id', 'name'),)
+
+class TaskComment(Base):
+    __tablename__ = 'task_comments'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    task = relationship('Task')
+    user = relationship('User')
+
+class TaskAttachment(Base):
+    __tablename__ = 'task_attachments'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer)
+    mime_type = Column(String(100))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    task = relationship('Task')
+    user = relationship('User')
+
+class Notification(Base):
+    __tablename__ = 'notifications'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    type = Column(String(50), nullable=False)
+    title = Column(String(255))
+    content = Column(Text)
+    related_id = Column(Integer)
+    related_type = Column(String(50))
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship('User')
+
+class OperationLog(Base):
+    __tablename__ = 'operation_logs'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='SET NULL'), index=True)
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='SET NULL'), index=True)
+    action = Column(String(50), nullable=False)
+    old_value = Column(Text)
+    new_value = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    user = relationship('User')
+```
+
+---
+
+## 实体关系图
+
+```
+User 1----M Project
+      |
+      +-- M ProjectMember
+      |
+      +-- M Task (assignee)
+      |
+      +-- M TaskComment
+      |
+      +-- M TaskAttachment
+      |
+      +-- M Notification
+      |
+      +-- M OperationLog
+
+Project 1----M ProjectMember
+       |
+       +-- M Task
+       |     |
+       |     +-- M Task (parent/children, 无限层级)
+       |     |
+       |     +-- M TaskDependency
+       |     |
+       |     +-- M TaskComment
+       |     |
+       |     +-- M TaskAttachment
+       |     |
+       |     +-- M TaskTag
+       |
+       +-- M TaskTag
+```
+
+---
+
+## 索引优化
+
+| 表 | 索引 | 用途 |
+|------|------|------|
+| users | email | 登录查询 |
+| projects | owner_id, status | 项目列表 |
+| tasks | project_id, parent_id, status, assignee_id | 任务查询 |
+| task_dependencies | task_id, dependent_task_id | 依赖查询 |
+| notifications | user_id, is_read | 通知列表 |
+| operation_logs | user_id, project_id, created_at | 日志查询 |
+
+---
+
+## 相关文档
+
+- [[tech/API]] - API 接口定义
+- [[tech/ATTACHMENT]] - 附件管理功能
+- [[tech/TECH_SOLUTION]] - 技术方案

@@ -215,6 +215,44 @@ class UserTaskListCache:
         self.cache.clear()
 
 
+class DingtalkConversationCache:
+    """钉钉对话历史缓存"""
+    
+    def __init__(self, ttl: int = 1800, max_messages: int = 10):
+        """
+        初始化缓存
+        
+        Args:
+            ttl: 生存时间（秒），默认 30 分钟
+            max_messages: 保留的最大消息数
+        """
+        self.cache = SimpleCache(ttl=ttl)
+        self.max_messages = max_messages
+        
+    def add_message(self, user_id: int, role: str, content: str):
+        """添加一条消息到历史"""
+        key = f"dingtalk_conv:{user_id}"
+        history = self.cache.get(key) or []
+        history.append({"role": role, "content": content})
+        
+        # 截断保留最近的消息
+        if len(history) > self.max_messages:
+            history = history[-self.max_messages:]
+            
+        self.cache.set(key, history)
+        
+    def get_messages(self, user_id: int) -> List[Dict[str, str]]:
+        """获取最近的消息历史"""
+        key = f"dingtalk_conv:{user_id}"
+        return self.cache.get(key) or []
+        
+    def clear_messages(self, user_id: int):
+        """清空对话历史"""
+        key = f"dingtalk_conv:{user_id}"
+        self.cache.delete(key)
+
+
 # 全局缓存实例
 dingtalk_user_mapping_cache = DingtalkUserMappingCache(ttl=300)  # 5 分钟
 user_task_list_cache = UserTaskListCache(ttl=60)  # 1 分钟
+dingtalk_conversation_cache = DingtalkConversationCache(ttl=1800, max_messages=10)  # 30 分钟

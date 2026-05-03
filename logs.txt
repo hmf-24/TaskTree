@@ -1,0 +1,195 @@
+[2026-05-03 02:57:40 +0000] [1] [INFO] Starting gunicorn 21.2.0
+[2026-05-03 02:57:40 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2026-05-03 02:57:40 +0000] [1] [INFO] Using worker: uvicorn.workers.UvicornWorker
+[2026-05-03 02:57:40 +0000] [7] [INFO] Booting worker with pid: 7
+[2026-05-03 02:57:41 +0000] [7] [INFO] Started server process [7]
+[2026-05-03 02:57:41 +0000] [7] [INFO] Waiting for application startup.
+✓ 数据库初始化成功
+🔍 正在检查启用Stream模式的用户...
+📋 找到 1 个启用Stream模式的用户
+🚀 正在启动钉钉Stream客户端...
+   ClientID: ding2nf0qw...
+🔧 pre_start 被调用✅ 钉钉Stream客户端已启动
+✅ 用户 1 的钉钉Stream客户端已启动
+🎉 钉钉Stream模式已启动，共 1 个客户端
+
+2026-05-03 02:57:42,274 dingtalk_stream.client INFO     open connection, url=https://api.dingtalk.com/v1.0/gateway/connections/open [stream.py:149]
+[2026-05-03 02:57:42 +0000] [7] [INFO] Application startup complete.
+2026-05-03 02:57:42,884 dingtalk_stream.client INFO     endpoint is {'endpoint': 'wss://wss-open-connection-union.dingtalk.com:443/connect', 'ticket': 'db25c63e-469b-11f1-bd39-d65ebd99c33e'} [stream.py:71]
+127.0.0.1:33610 - "GET /health HTTP/1.1" 200
+172.19.0.3:34988 - "GET /api/v1/tasktree/notifications?page_size=20 HTTP/1.1" 200
+127.0.0.1:43714 - "GET /health HTTP/1.1" 200
+📨 收到钉钉消息: sender=manager5045, content=详细说下文档编写这个任务...
+🔄 开始处理消息...
+📨 处理消息: sender=manager5045, content=详细说下文档编写这个任务...
+🔍 查询用户映射: sender_id=manager5045
+🔍 查询结果: settings=<app.models.UserNotificationSettings object at 0x7e6001a3e650>
+✅ 找到用户: user_id=1
+🚀 开始处理钉钉消息...
+📨 收到钉钉消息: sender=manager5045, content=详细说下文档编写这个任务
+✅ 找到用户: user_id=1
+✅ 已加载用户 LLM 配置: provider=minimax, model=MiniMax-M2.7
+🎯 [L2/RuleEngine] → query_task_detail (conf=0.9)
+🎯 意图解析完成: intent=query_task_detail, confidence=0.90, source=rule_engine
+🔄 使用Stream模式发送消息
+🔑 获取Access Token: https://api.dingtalk.com/v1.0/oauth2/accessToken
+🔑 Access Token响应: {'expireIn': 7200, 'accessToken': 'b04be732eabf33f4ac38475d02de1c1b'}
+✅ 获取Access Token成功，有效期: 7200秒
+📡 Stream模式发送消息:
+   API: https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend
+   Robot Code: ding2nf0qw73k0jru6a3
+   User ID: manager5045
+   Msg Key: sampleMarkdown
+   Msg Param: {"title": "任务详情 - 文档编写", "text": "## 📋 任务详情\n\n**任务名称**: 文档编写\n**任务状态**: in_progress\n**完成进度**: 50%\n**优先级**: low\n**截止时间**: 2026-05-06\n**描述**: 编写项目文档\n\n---\n*来自 TaskTree*"}
+📬 钉钉Stream API响应: {'flowControlledStaffIdList': [], 'invalidStaffIdList': [], 'processQueryKey': 'T7q3EZSI8RZEfU5sSiQ/8dhAAVW5imWi//0cq2Btrak='}
+✅ 消息处理完成: success=True
+✅ 消息处理完成
+📨 收到钉钉消息: sender=manager5045, content=这个任务还能告诉我什么信息...
+🔄 开始处理消息...
+📨 处理消息: sender=manager5045, content=这个任务还能告诉我什么信息...
+🔍 查询用户映射: sender_id=manager5045
+🔍 查询结果: settings=<app.models.UserNotificationSettings object at 0x7e60000aa950>
+✅ 找到用户: user_id=1
+🚀 开始处理钉钉消息...
+📨 收到钉钉消息: sender=manager5045, content=这个任务还能告诉我什么信息
+✅ 找到用户: user_id=1
+✅ 已加载用户 LLM 配置: provider=minimax, model=MiniMax-M2.7
+172.19.0.3:44192 - "GET /api/v1/tasktree/notifications?page_size=20 HTTP/1.1" 200
+🎯 [L3/LLM] → query_task_detail (conf=0.65)
+🎯 意图解析完成: intent=query_task_detail, confidence=0.65, source=llm
+🔄 使用Stream模式发送消息
+✅ 使用缓存的Access Token
+📡 Stream模式发送消息:
+   API: https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend
+   Robot Code: ding2nf0qw73k0jru6a3
+   User ID: manager5045
+   Msg Key: sampleText
+   Msg Param: {"content": "您想操作哪个任务呢？请告诉我任务名称或编号。\n\n💡 输入 /list 可以查看您的任务列表"}
+📬 钉钉Stream API响应: {'flowControlledStaffIdList': [], 'invalidStaffIdList': [], 'processQueryKey': '2kAZkD/rRJeKpVQCny/DZKfwbCZ1SXfzVEt8LPdKp4M='}
+✅ 消息处理完成: success=False
+✅ 消息处理完成
+127.0.0.1:36890 - "GET /health HTTP/1.1" 200
+📨 收到钉钉消息: sender=manager5045, content=/list...
+🔄 开始处理消息...
+📨 处理消息: sender=manager5045, content=/list...
+🔍 查询用户映射: sender_id=manager5045
+🔍 查询结果: settings=<app.models.UserNotificationSettings object at 0x7e60000a9790>
+✅ 找到用户: user_id=1
+🚀 开始处理钉钉消息...
+📨 收到钉钉消息: sender=manager5045, content=/list
+✅ 找到用户: user_id=1
+✅ 已加载用户 LLM 配置: provider=minimax, model=MiniMax-M2.7
+🎯 [L1/SlashCommand] /list → query_task_list (conf=1.0)
+🎯 意图解析完成: intent=query_task_list, confidence=1.00, source=slash_command
+🔄 使用Stream模式发送消息
+✅ 使用缓存的Access Token
+📡 Stream模式发送消息:
+   API: https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend
+   Robot Code: ding2nf0qw73k0jru6a3
+   User ID: manager5045
+   Msg Key: sampleMarkdown
+   Msg Param: {"title": "我的任务列表", "text": "**任务列表**\n\n\n1. ⏳ **测试任务** ⏳ 待处理\n   进度: [░░░░░░░░░░] 0%\n   📅 截止日期: 2026-05-06\n\n2. 🔄 **文档编写** 🔄 进行中\n   进度: [█████░░░░░] 50%\n   📅 截止日期: 2026-05-06\n\n3. 🔄 **开发功能** 🔄 进行中\n   进度: [███░░░░░░░] 30%\n   📅 截止日期: 2026-05-06\n\n4. ⏳ **修复Bug** ⏳ 待处理\n   进度: [░░░░░░░░░░] 0%\n   📅 截止日期: 2026-05-06"}
+📬 钉钉Stream API响应: {'flowControlledStaffIdList': [], 'invalidStaffIdList': [], 'processQueryKey': 'o4B00DhYs5rlcJl5/NvzImcDJ7k4Xo2/2CJXS415Wl4='}
+✅ 消息处理完成: success=True
+✅ 消息处理完成
+📨 收到钉钉消息: sender=manager5045, content=文档编写这个...
+🔄 开始处理消息...
+📨 处理消息: sender=manager5045, content=文档编写这个...
+🔍 查询用户映射: sender_id=manager5045
+🔍 查询结果: settings=<app.models.UserNotificationSettings object at 0x7e6001a23d90>
+✅ 找到用户: user_id=1
+🚀 开始处理钉钉消息...
+📨 收到钉钉消息: sender=manager5045, content=文档编写这个
+✅ 找到用户: user_id=1
+✅ 已加载用户 LLM 配置: provider=minimax, model=MiniMax-M2.7
+📨 收到钉钉消息: sender=manager5045, content=详细说下文档编写这个任务...
+🔄 开始处理消息...
+📨 处理消息: sender=manager5045, content=详细说下文档编写这个任务...
+🔍 查询用户映射: sender_id=manager5045
+🔍 查询结果: settings=<app.models.UserNotificationSettings object at 0x7e60000d26d0>
+✅ 找到用户: user_id=1
+🚀 开始处理钉钉消息...
+📨 收到钉钉消息: sender=manager5045, content=详细说下文档编写这个任务
+✅ 找到用户: user_id=1
+✅ 已加载用户 LLM 配置: provider=minimax, model=MiniMax-M2.7
+🎯 [L2/RuleEngine] → query_task_detail (conf=0.9)
+🎯 意图解析完成: intent=query_task_detail, confidence=0.90, source=rule_engine
+🔄 使用Stream模式发送消息
+✅ 使用缓存的Access Token
+📡 Stream模式发送消息:
+   API: https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend
+   Robot Code: ding2nf0qw73k0jru6a3
+   User ID: manager5045
+   Msg Key: sampleMarkdown
+   Msg Param: {"title": "任务详情 - 文档编写", "text": "## 📋 任务详情\n\n**任务名称**: 文档编写\n**任务状态**: in_progress\n**完成进度**: 50%\n**优先级**: low\n**截止时间**: 2026-05-06\n**描述**: 编写项目文档\n\n---\n*来自 TaskTree*"}
+📬 钉钉Stream API响应: {'flowControlledStaffIdList': [], 'invalidStaffIdList': [], 'processQueryKey': 'ugZO/inq3m5A25qL0hNg8y7tKwNYkO17yAscQ+bihJs='}
+✅ 消息处理完成: success=True
+✅ 消息处理完成
+🎯 [L3/LLM] → query_task_detail (conf=0.82)
+🎯 意图解析完成: intent=query_task_detail, confidence=0.82, source=llm
+🔄 使用Stream模式发送消息
+✅ 使用缓存的Access Token
+📡 Stream模式发送消息:
+   API: https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend
+   Robot Code: ding2nf0qw73k0jru6a3
+   User ID: manager5045
+   Msg Key: sampleMarkdown
+   Msg Param: {"title": "任务详情 - 文档编写", "text": "## 📋 任务详情\n\n**任务名称**: 文档编写\n**任务状态**: in_progress\n**完成进度**: 50%\n**优先级**: low\n**截止时间**: 2026-05-06\n**描述**: 编写项目文档\n\n---\n*来自 TaskTree*"}
+📬 钉钉Stream API响应: {'flowControlledStaffIdList': [], 'invalidStaffIdList': [], 'processQueryKey': 'vW6jZvobNvVtzd4G3aUafdIejqYTf44VXJdROnOiOYg='}
+✅ 消息处理完成: success=True
+✅ 消息处理完成
+127.0.0.1:43162 - "GET /health HTTP/1.1" 200
+🔁 检测到重复消息，跳过处理: 这个任务还能告诉我什么信息...
+172.19.0.3:51456 - "GET /api/v1/tasktree/notifications?page_size=20 HTTP/1.1" 200
+127.0.0.1:60210 - "GET /health HTTP/1.1" 200
+📨 收到钉钉消息: sender=manager5045, content=/list...
+🔄 开始处理消息...
+📨 处理消息: sender=manager5045, content=/list...
+🔍 查询用户映射: sender_id=manager5045
+🔍 查询结果: settings=<app.models.UserNotificationSettings object at 0x7e60000d2990>
+✅ 找到用户: user_id=1
+🚀 开始处理钉钉消息...
+📨 收到钉钉消息: sender=manager5045, content=/list
+✅ 找到用户: user_id=1
+✅ 已加载用户 LLM 配置: provider=minimax, model=MiniMax-M2.7
+🎯 [L1/SlashCommand] /list → query_task_list (conf=1.0)
+🎯 意图解析完成: intent=query_task_list, confidence=1.00, source=slash_command
+🔄 使用Stream模式发送消息
+✅ 使用缓存的Access Token
+📡 Stream模式发送消息:
+   API: https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend
+   Robot Code: ding2nf0qw73k0jru6a3
+   User ID: manager5045
+   Msg Key: sampleMarkdown
+   Msg Param: {"title": "我的任务列表", "text": "**任务列表**\n\n\n1. ⏳ **测试任务** ⏳ 待处理\n   进度: [░░░░░░░░░░] 0%\n   📅 截止日期: 2026-05-06\n\n2. 🔄 **文档编写** 🔄 进行中\n   进度: [█████░░░░░] 50%\n   📅 截止日期: 2026-05-06\n\n3. 🔄 **开发功能** 🔄 进行中\n   进度: [███░░░░░░░] 30%\n   📅 截止日期: 2026-05-06\n\n4. ⏳ **修复Bug** ⏳ 待处理\n   进度: [░░░░░░░░░░] 0%\n   📅 截止日期: 2026-05-06"}
+📬 钉钉Stream API响应: {'flowControlledStaffIdList': [], 'invalidStaffIdList': [], 'processQueryKey': 'Y2owCpGrRQrMP3pRUe/CrA+0BhEpuuuae3qKXeGXtjo='}
+✅ 消息处理完成: success=True
+✅ 消息处理完成
+📨 收到钉钉消息: sender=manager5045, content=文档编写这个...
+🔄 开始处理消息...
+📨 处理消息: sender=manager5045, content=文档编写这个...
+🔍 查询用户映射: sender_id=manager5045
+🔍 查询结果: settings=<app.models.UserNotificationSettings object at 0x7e60000b7e10>
+✅ 找到用户: user_id=1
+🚀 开始处理钉钉消息...
+📨 收到钉钉消息: sender=manager5045, content=文档编写这个
+✅ 找到用户: user_id=1
+✅ 已加载用户 LLM 配置: provider=minimax, model=MiniMax-M2.7
+127.0.0.1:41320 - "GET /health HTTP/1.1" 200
+🎯 [L3/LLM] → query_task_detail (conf=0.65)
+🎯 意图解析完成: intent=query_task_detail, confidence=0.65, source=llm
+🔄 使用Stream模式发送消息
+✅ 使用缓存的Access Token
+📡 Stream模式发送消息:
+   API: https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend
+   Robot Code: ding2nf0qw73k0jru6a3
+   User ID: manager5045
+   Msg Key: sampleMarkdown
+   Msg Param: {"title": "任务详情 - 文档编写", "text": "## 📋 任务详情\n\n**任务名称**: 文档编写\n**任务状态**: in_progress\n**完成进度**: 50%\n**优先级**: low\n**截止时间**: 2026-05-06\n**描述**: 编写项目文档\n\n---\n*来自 TaskTree*"}
+📬 钉钉Stream API响应: {'flowControlledStaffIdList': [], 'invalidStaffIdList': [], 'processQueryKey': 'rmz2n48BxL4wkJ73ThdZkiNK0mqlMgf4DOYNKDTjipM='}
+✅ 消息处理完成: success=True
+✅ 消息处理完成
+172.19.0.3:51046 - "GET /api/v1/tasktree/notifications?page_size=20 HTTP/1.1" 200
+127.0.0.1:41334 - "GET /health HTTP/1.1" 200
+127.0.0.1:59368 - "GET /health HTTP/1.1" 200
+172.19.0.3:39350 - "GET /api/v1/tasktree/notifications?page_size=20 HTTP/1.1" 200

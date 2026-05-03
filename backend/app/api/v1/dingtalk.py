@@ -21,11 +21,6 @@ from app.models import User, Task, Project, UserNotificationSettings, ProgressFe
 from app.schemas import MessageResponse
 from app.services.dingtalk_service import DingtalkService
 from app.services.llm_service import LLMService
-from app.services.progress_parser_service import ProgressParserService
-from app.services.dingtalk_user_mapping_service import DingtalkUserMappingService
-from app.services.task_matcher import TaskMatcherService
-from app.services.task_updater import TaskUpdaterService
-from app.services.message_printer import MessagePrinterService
 from app.services.async_task_queue import run_in_background
 from app.services.rate_limiter import (
     dingtalk_rate_limiter,
@@ -37,14 +32,12 @@ from app.services.cache_service import (
     user_task_list_cache
 )
 from app.services.security_logger import security_logger
-from app.schemas import ParseResultSchema
 
 router = APIRouter(prefix="/api/v1/dingtalk", tags=["dingtalk"])
 
 # 初始化服务
 dingtalk_service = DingtalkService()
 llm_service = LLMService()
-message_printer = MessagePrinterService()
 
 
 def verify_dingtalk_signature(
@@ -147,6 +140,11 @@ async def dingtalk_callback(
                 "请先绑定钉钉账号，访问系统设置进行绑定"
             )
             return MessageResponse(message="success")
+            
+        # 如果启用了Stream模式，忽略Webhook推送，防止重复处理
+        if settings and settings.dingtalk_stream_enabled:
+            print(f"⏭️ 忽略Webhook推送（用户已启用Stream模式）: {dingtalk_user_id}")
+            return MessageResponse(message="success")
         
         # 检查频率限制
         is_allowed, rate_limit_info = dingtalk_rate_limiter.is_allowed(user_id)
@@ -189,12 +187,27 @@ async def process_dingtalk_message(
     message_content: str,
     db: AsyncSession
 ):
-    """处理钉钉消息（异步）"""
+    """
+    处理钉钉消息 — 三步架构
+    
+    重构自原 200+ 行 if/else 瀑布流，参考 Claude Code 的
+    handlePromptSubmit → processUserInput → queryLoop 设计。
+    
+    三步流程:
+    1. 构建上下文 (ContextBuilder)
+    2. 解析意图 (IntentResolver: 斜杠命令 → 规则引擎 → LLM)
+    3. 执行动作 (ActionExecutor)
+    """
+    from app.services.intent_resolver import IntentResolver
+    from app.services.context_builder import ContextBuilder
+    from app.services.action_executor import ActionExecutor
+    from app.core.config import settings as app_settings
+    
     try:
         print(f"📨 收到钉钉消息: sender={dingtalk_user_id}, content={message_content}")
         print(f"✅ 找到用户: user_id={user_id}")
         
-        # 获取用户的Stream模式配置
+        # ── 获取 Stream 模式配置 ──
         result = await db.execute(
             select(UserNotificationSettings).where(
                 UserNotificationSettings.user_id == user_id
@@ -202,7 +215,6 @@ async def process_dingtalk_message(
         )
         settings = result.scalar_one_or_none()
         
-        # 准备Stream模式参数
         use_stream_mode = False
         client_id = None
         client_secret = None
@@ -210,7 +222,6 @@ async def process_dingtalk_message(
         if settings and settings.dingtalk_stream_enabled:
             use_stream_mode = True
             client_id = settings.dingtalk_client_id
-            # 解密client_secret
             if settings.dingtalk_client_secret_encrypted:
                 from app.core.crypto import decrypt_api_key
                 try:
@@ -219,213 +230,74 @@ async def process_dingtalk_message(
                     print(f"⚠️  解密Client Secret失败: {e}")
                     client_secret = None
         
-        print(f"🔧 Stream模式: {use_stream_mode}, Client ID: {client_id}")
+        # ── 动态加载用户 LLM 配置 ──
+        user_llm_service = llm_service  # 默认使用全局实例
+        if settings and settings.llm_api_key_encrypted:
+            from app.core.crypto import decrypt_api_key
+            try:
+                api_key = decrypt_api_key(settings.llm_api_key_encrypted)
+                if api_key:
+                    user_llm_service = LLMService(
+                        provider=settings.llm_provider or "minimax",
+                        api_key=api_key,
+                        model=settings.llm_model or None,
+                        group_id=settings.llm_group_id or None,
+                    )
+                    print(f"✅ 已加载用户 LLM 配置: provider={settings.llm_provider}, model={settings.llm_model}")
+            except Exception as e:
+                print(f"⚠️  加载用户 LLM 配置失败: {e}")
         
-        print(f"🔍 开始解析消息: {message_content}")
+        # ── Step 0: 提前写入用户消息到对话缓存 (确保 Step 1 上下文可见) ──
+        try:
+            from app.services.cache_service import dingtalk_conversation_cache
+            dingtalk_conversation_cache.add_message(user_id, "user", message_content)
+        except Exception as e:
+            print(f"⚠️ 预写入对话缓存失败: {e}")
         
-        # 0. 拦截查询任务列表的意图
-        list_keywords = ["我的任务", "任务列表", "所有任务", "我有哪些任务", "查任务", "任务有哪些"]
-        msg_no_space = message_content.replace(" ", "")
+        # ── Step 1: 构建上下文 ──
+        context_builder = ContextBuilder(db)
+        context = await context_builder.build(user_id)
         
-        is_list_intent = False
-        for k in list_keywords:
-            if k in msg_no_space:
-                is_list_intent = True
-                break
-                
-        if not is_list_intent and message_content.strip().lower() in ["list", "ls", "任务"]:
-            is_list_intent = True
-            
-        if is_list_intent:
-            print(f"📋 识别为查询任务列表意图")
-            from sqlalchemy import or_
-            query = select(Task).where(
-                or_(Task.assignee_id == user_id),
-                Task.status.in_(['pending', 'in_progress'])
-            ).order_by(
-                Task.due_date.asc().nulls_last(),
-                Task.priority.desc()
-            ).limit(10)
-            
-            result = await db.execute(query)
-            tasks = result.scalars().all()
-            
-            if not tasks:
-                await dingtalk_service.send_message(
-                    dingtalk_user_id=dingtalk_user_id,
-                    content="🎉 您当前没有进行中或待处理的任务。",
-                    use_stream_mode=use_stream_mode,
-                    client_id=client_id,
-                    client_secret=client_secret
-                )
-            else:
-                task_list_msg = message_printer.format_task_list(tasks, show_progress=True)
-                await dingtalk_service.send_message(
-                    dingtalk_user_id=dingtalk_user_id,
-                    content=task_list_msg,
-                    msg_type="markdown",
-                    title="我的任务列表",
-                    use_stream_mode=use_stream_mode,
-                    client_id=client_id,
-                    client_secret=client_secret
-                )
-            return
-
-        # 1. 使用 ProgressParserService 解析进度
-        progress_parser = ProgressParserService(llm_service)
-        parse_result_dict = progress_parser.parse(message=message_content)
-        
-        print(f"📊 解析结果: {parse_result_dict}")
-        
-        if not parse_result_dict or parse_result_dict.get("confidence", 0) < 0.3:
-            print(f"⚠️  置信度过低，发送帮助消息")
-            await dingtalk_service.send_message(
-                dingtalk_user_id=dingtalk_user_id,
-                content=message_printer.format_help_message(),
-                use_stream_mode=use_stream_mode,
-                client_id=client_id,
-                client_secret=client_secret
-            )
-            return
-        
-        # 2. 使用 TaskMatcherService 匹配任务
-        task_matcher = TaskMatcherService(db)
-        keywords = parse_result_dict.get("keywords", [])
-        
-        print(f"🔑 提取的关键词: {keywords}")
-        
-        # 如果没有关键词，尝试从消息中提取
-        if not keywords:
-            # 简单分词（可以使用更复杂的分词工具）
-            keywords = [word for word in message_content.split() if len(word) > 1]
-            print(f"🔑 从消息中提取的关键词: {keywords}")
-        
-        matched_tasks = await task_matcher.match(
-            keywords=keywords,
+        # ── Step 2: 解析意图 ──
+        intent_resolver = IntentResolver(db, user_llm_service)
+        intent = await intent_resolver.resolve(
+            message=message_content,
             user_id=user_id,
-            limit=5
+            context=context,
         )
         
-        print(f"📋 匹配到的任务数量: {len(matched_tasks) if matched_tasks else 0}")
+        print(f"🎯 意图解析完成: intent={intent.intent.value}, "
+              f"confidence={intent.confidence:.2f}, source={intent.source}")
         
-        if not matched_tasks:
-            print(f"⚠️  没有匹配到任务，发送错误消息")
-            error_msg = message_printer.format_error_message("no_match")
-            await dingtalk_service.send_message(
-                dingtalk_user_id=dingtalk_user_id,
-                content=error_msg,
-                use_stream_mode=use_stream_mode,
-                client_id=client_id,
-                client_secret=client_secret
-            )
-            return
+        # ── Step 3: 执行动作 ──
+        action_executor = ActionExecutor(db, user_llm_service)
+        action_result = await action_executor.execute(intent, user_id)
         
-        if len(matched_tasks) > 1:
-            print(f"📋 匹配到多个任务，让用户选择")
-            # 多个匹配，让用户选择
-            multi_match_msg = message_printer.format_multiple_matches(
-                matched_tasks,
-                " ".join(keywords)
-            )
-            await dingtalk_service.send_message(
-                dingtalk_user_id=dingtalk_user_id,
-                content=multi_match_msg,
-                use_stream_mode=use_stream_mode,
-                client_id=client_id,
-                client_secret=client_secret
-            )
-            return
+        # ── 发送回复 ──
+        await dingtalk_service.send_message(
+            dingtalk_user_id=dingtalk_user_id,
+            content=action_result.message,
+            msg_type=action_result.msg_type,
+            title=action_result.title,
+            use_stream_mode=use_stream_mode,
+            client_id=client_id,
+            client_secret=client_secret,
+        )
         
-        # 3. 根据解析类型处理
-        task = matched_tasks[0]
-        parse_type = parse_result_dict.get("type", "query")
-        
-        print(f"📝 解析类型: {parse_type}, 任务: {task.name}")
-        
-        # 如果是查询类型，返回任务详情
-        if parse_type == "query":
-            print(f"📤 发送任务详情")
-            # 获取任务详细信息
-            task_detail = f"""## 📋 任务详情
-
-**任务名称**: {task.name}
-**任务状态**: {task.status}
-**完成进度**: {task.progress}%
-**优先级**: {task.priority or '未设置'}
-**截止时间**: {task.due_date.strftime('%Y-%m-%d') if task.due_date else '未设置'}
-**描述**: {task.description or '无'}
-
----
-*来自 TaskTree*"""
-            
-            await dingtalk_service.send_message(
-                dingtalk_user_id=dingtalk_user_id,
-                content=task_detail,
-                msg_type="markdown",
-                title=f"任务详情 - {task.name}",
-                use_stream_mode=use_stream_mode,
-                client_id=client_id,
-                client_secret=client_secret
-            )
-            return
-        
-        # 其他类型（completed, in_progress, problem, extend）才更新任务
-        task_updater = TaskUpdaterService(db)
-        
+        # ── 保存助手回复到对话上下文 (用户消息已在 Step 0 写入) ──
         try:
-            # 构建 ParseResultSchema
-            parse_result = ParseResultSchema(
-                type=parse_result_dict.get("type", "query"),
-                progress=parse_result_dict.get("progress", 0),
-                description=parse_result_dict.get("description", ""),
-                extend_days=parse_result_dict.get("extend_days", 0),
-                confidence=parse_result_dict.get("confidence", 0.5),
-                keywords=keywords
-            )
-            
-            updated_task = await task_updater.update_from_feedback(
-                task_id=task.id,
-                parse_result=parse_result,
-                user_id=user_id,
-                message_content=message_content
-            )
-            
-            # 任务更新后，清除缓存
-            user_task_list_cache.delete_tasks(user_id)
-            
-            # 4. 发送确认消息（使用格式化服务）
-            confirmation_msg = message_printer.format_confirmation(
-                task_name=updated_task.name,
-                action=f"更新任务状态为 {updated_task.status}",
-                old_value=f"{task.status} ({task.progress}%)",
-                new_value=f"{updated_task.status} ({updated_task.progress}%)"
-            )
-            await dingtalk_service.send_message(
-                dingtalk_user_id=dingtalk_user_id,
-                content=confirmation_msg,
-                use_stream_mode=use_stream_mode,
-                client_id=client_id,
-                client_secret=client_secret
-            )
+            from app.services.cache_service import dingtalk_conversation_cache
+            dingtalk_conversation_cache.add_message(user_id, "assistant", action_result.message[:500])
+        except Exception as e:
+            print(f"⚠️ 保存钉钉对话历史失败: {e}")
         
-        except PermissionError:
-            error_msg = message_printer.format_error_message("permission_denied")
-            await dingtalk_service.send_message(
-                dingtalk_user_id=dingtalk_user_id,
-                content=error_msg,
-                use_stream_mode=use_stream_mode,
-                client_id=client_id,
-                client_secret=client_secret
-            )
-        except ValueError as e:
-            error_msg = message_printer.format_error_message("parse_failed", str(e))
-            await dingtalk_service.send_message(
-                dingtalk_user_id=dingtalk_user_id,
-                content=error_msg,
-                use_stream_mode=use_stream_mode,
-                client_id=client_id,
-                client_secret=client_secret
-            )
+        # 写操作成功后清除缓存
+        if action_result.success and intent.intent in (
+            "update_progress", "create_task", "modify_task"
+        ):
+            user_task_list_cache.delete_tasks(user_id)
+        
+        print(f"✅ 消息处理完成: success={action_result.success}")
     
     except Exception as e:
         print(f"处理钉钉消息失败: {e}")

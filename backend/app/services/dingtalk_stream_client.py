@@ -126,6 +126,32 @@ class DingtalkStreamClient:
         self.message_handler = message_handler
         self.client: Optional[dingtalk_stream.DingTalkStreamClient] = None
         self._running = False
+        # 消息去重缓存: {message_key: timestamp}
+        self._processed_messages: dict = {}
+        self._dedup_ttl = 60  # 60秒内相同消息视为重复
+    
+    def _is_duplicate(self, sender_id: str, content: str, msg_id: str = None) -> bool:
+        """检查消息是否重复（基于 msg_id 或 sender + content 的 TTL 缓存）"""
+        import time
+        now = time.time()
+        
+        # 清理过期条目
+        expired = [k for k, t in self._processed_messages.items() if now - t > self._dedup_ttl]
+        for k in expired:
+            del self._processed_messages[k]
+        
+        # 生成去重键
+        if msg_id:
+            dedup_key = f"msg:{msg_id}"
+        else:
+            dedup_key = f"content:{sender_id}:{content.strip()}"
+        
+        if dedup_key in self._processed_messages:
+            print(f"🔁 检测到重复消息，跳过处理: {content[:30]}...")
+            return True
+        
+        self._processed_messages[dedup_key] = now
+        return False
     
     async def start(self) -> None:
         """启动客户端，建立WebSocket连接"""
@@ -166,9 +192,10 @@ class DingtalkStreamClient:
             raise
     
     def __call__(self, message: dingtalk_stream.ChatbotMessage):
-        """使类实例可调用，作为消息处理回调"""
-        print(f"🔔 __call__ 被调用，消息类型: {type(message)}")
-        return self._handle_message_wrapper(message)
+        """使类实例可调用 — 委托给 raw_process，不再单独处理"""
+        # 不做任何处理，所有逻辑统一由 raw_process 处理
+        # 返回 AckMessage 避免 SDK 报错
+        return AckMessage()
     
     def pre_start(self):
         """SDK要求的预启动方法"""
@@ -176,23 +203,37 @@ class DingtalkStreamClient:
         pass
     
     async def raw_process(self, message):
-        """SDK要求的原始消息处理方法（异步）"""
-        print(f"🔔 raw_process 被调用，消息类型: {type(message)}")
-        # 在后台线程中处理消息（避免阻塞）
+        """SDK 唯一的消息处理入口（异步）"""
         import threading
+        import time as _time
         
         # 从message.data中提取消息信息
         data = message.data if hasattr(message, 'data') else {}
         sender_id = data.get('senderStaffId') or data.get('senderId')
+        msg_id = data.get('msgId')
+        create_at = data.get('createAt')  # 毫秒时间戳
         text_data = data.get('text', {})
         content = text_data.get('content', '') if isinstance(text_data, dict) else ''
         
-        print(f"📨 收到钉钉消息: sender={sender_id}, content={content[:50]}...")
-        
         if not sender_id or not content:
             print(f"⚠️  消息信息不完整: sender_id={sender_id}, content={content}")
-            # 返回AckMessage对象
             return AckMessage()
+        
+        # ── 防重放：拒绝超过 30 秒的旧消息 ──
+        if create_at:
+            try:
+                msg_age_sec = (_time.time() * 1000 - int(create_at)) / 1000
+                if msg_age_sec > 30:
+                    print(f"⏰ 丢弃过期消息 (距今 {msg_age_sec:.1f}s): {content[:30]}...")
+                    return AckMessage()
+            except (ValueError, TypeError):
+                pass  # createAt 格式异常时跳过时间检查
+        
+        # ── 去重检查（第二道防线） ──
+        if self._is_duplicate(sender_id, content, msg_id):
+            return AckMessage()
+        
+        print(f"📨 收到钉钉消息: sender={sender_id}, content={content[:50]}...")
         
         # 提取消息数据
         message_dict = {
@@ -217,53 +258,6 @@ class DingtalkStreamClient:
         
         # 立即返回AckMessage对象
         return AckMessage()
-    
-    def _handle_message_wrapper(self, message: dingtalk_stream.ChatbotMessage):
-        """消息处理包装器（同步转异步）"""
-        try:
-            # 从message.data中提取消息信息
-            data = message.data if hasattr(message, 'data') else {}
-            
-            sender_id = data.get('senderStaffId') or data.get('senderId')
-            text_data = data.get('text', {})
-            content = text_data.get('content', '') if isinstance(text_data, dict) else ''
-            
-            print(f"📨 收到钉钉消息: sender={sender_id}, content={content[:50]}...")
-            
-            if not sender_id or not content:
-                print(f"⚠️  消息信息不完整: sender_id={sender_id}, content={content}")
-                return 0  # 返回整数状态码
-            
-            # 提取消息数据
-            message_dict = {
-                "senderId": sender_id,
-                "text": {
-                    "content": content.strip()  # 去除前后空格
-                }
-            }
-            
-            # 在后台线程中处理消息（避免阻塞事件循环）
-            import threading
-            def process_in_thread():
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(self.message_handler(message_dict))
-                finally:
-                    loop.close()
-            
-            thread = threading.Thread(target=process_in_thread, daemon=True)
-            thread.start()
-            
-            # 立即返回成功响应（不等待处理完成）
-            return 0  # 返回整数状态码
-        
-        except Exception as e:
-            print(f"❌ 消息包装器错误: {e}")
-            import traceback
-            traceback.print_exc()
-            return 0  # 返回整数状态码
     
     async def stop(self) -> None:
         """停止客户端，断开连接"""
