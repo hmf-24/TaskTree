@@ -166,23 +166,15 @@ class ReminderScheduler:
         )
         projects = result.scalars().all()
 
-        # 获取所有任务（排除已完成和最近已提醒的）
+        # 获取所有任务（包含已完成的，以供 LLM 了解全局进度和推断阶段）
         all_tasks = []
         for project in projects:
             result = await db.execute(
-                select(Task).where(
-                    and_(
-                        Task.project_id == project.id,
-                        Task.status != "completed"
-                    )
-                )
+                select(Task).where(Task.project_id == project.id)
             )
             tasks = result.scalars().all()
 
             for task in tasks:
-                # 跳过6小时内已发送过的任务
-                if task.id in recent_task_ids:
-                    continue
                 all_tasks.append({
                     "id": task.id,
                     "project_id": task.project_id,
@@ -191,6 +183,8 @@ class ReminderScheduler:
                     "status": task.status,
                     "priority": task.priority,
                     "progress": task.progress,
+                    "parent_id": task.parent_id,
+                    "estimated_time": task.estimated_time,
                     "due_date": task.due_date.isoformat() if task.due_date else None,
                     "updated_at": task.updated_at.isoformat() if task.updated_at else None
                 })
@@ -231,10 +225,13 @@ class ReminderScheduler:
             print(f"ℹ️ LLM判断无需提醒")
             return None  # 不需要提醒
 
-        # 检查是否已发送过类似消息（避免重复）
+        # 检查是否已发送过类似消息（过滤掉最近6小时已提醒的任务）
         task_ids = analysis.get("tasks_to_remind", [])
+        if not is_manual:
+            task_ids = [tid for tid in task_ids if tid not in recent_task_ids]
+            
         if not task_ids:
-            print(f"⚠️ 没有需要提醒的任务ID")
+            print(f"⚠️ 没有需要提醒的新任务（或者均在近期已提醒过）")
             return None  # 没有需要提醒的任务
 
         print(f"🎯 准备发送提醒，任务ID: {task_ids}")
@@ -248,13 +245,23 @@ class ReminderScheduler:
         )
 
         message = analysis.get("message", "您有任务需要关注")
+        current_stage = analysis.get("current_stage", "")
+        next_key_node = analysis.get("next_key_node", "")
+        estimated_time = analysis.get("estimated_time_for_next_node", "")
         plan = analysis.get("plan", "")
 
         # 构建提醒内容，包含规划建议
-        content = f"## 🔔 任务提醒\n\n{message}\n"
+        content = f"## 🔔 智能任务提醒\n\n{message}\n\n---\n\n"
+        if current_stage:
+            content += f"📍 **当前所处阶段**：{current_stage}\n\n"
+        if next_key_node:
+            content += f"🎯 **下一步关键节点**：{next_key_node}\n\n"
+        if estimated_time:
+            content += f"⏳ **预估所需时间**：{estimated_time}\n\n"
         if plan:
-            content += f"\n📋 **规划建议**\n{plan}\n"
-        content += "\n---\n*来自 TaskTree 智能助手*"
+            content += f"💡 **AI 深度规划建议**：\n{plan}\n\n"
+        
+        content += "---\n*来自 TaskTree 智能助手*"
 
         result = await service.send_message(
             content=content,

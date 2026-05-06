@@ -181,7 +181,6 @@ class ContextBuilder:
         """
         try:
             query = select(Task).where(
-                or_(Task.assignee_id == user_id),
                 Task.status.in_(["pending", "in_progress"]),
             )
             

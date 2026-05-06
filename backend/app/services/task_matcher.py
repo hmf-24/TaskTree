@@ -76,13 +76,8 @@ class TaskMatcherService:
         Returns:
             任务列表
         """
-        # 构建查询
-        query = select(Task).where(
-            or_(
-                Task.assignee_id == user_id,
-                # 也可以匹配用户创建的任务（如果有 created_by 字段）
-            )
-        )
+        # 构建查询（单用户模式下，不对 assignee_id 进行过滤）
+        query = select(Task)
         
         # 如果指定了项目，限制在该项目内
         if project_id:

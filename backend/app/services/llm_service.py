@@ -71,23 +71,28 @@ class LLMService:
         task_summary = self._build_task_summary(user_tasks)
         analysis_dims = self._build_analysis_dims(config)
 
-        prompt = f"""你是一个专业的任务管理顾问。请分析以下任务数据：
+        prompt = f"""你是一个专业的任务管理顾问。请深度分析以下任务数据，你需要充当 AI 项目经理的角色。
 
 项目名称：{project_name}
-任务列表：
+任务列表（包含父子层级关系等）：
 {task_summary}
 
-请根据以下维度分析：
+请根据以下维度深度分析：
 {analysis_dims}
+7. 阶段推断：结合所有任务的完成状态，推断项目当前处于什么宏观阶段？
+8. 下一步动作：指出最紧急或阻塞后续工作的下一步关键节点是什么，并预估其耗时。
 
-返回JSON格式：
+返回严格的 JSON 格式：
 {{
     "need_remind": true/false,
     "remind_reason": "简短原因",
     "priority": "high/medium/low",
-    "message": "提醒消息(Markdown)",
+    "message": "整体提醒概括(Markdown)",
     "tasks_to_remind": [task_ids],
-    "plan": "规划建议",
+    "current_stage": "推断出的当前宏观阶段（例如：需求分析阶段/API开发阶段/卡点攻坚期）",
+    "next_key_node": "下一步最需要完成的关键节点（具体动作）",
+    "estimated_time_for_next_node": "预估耗时（例如：约4小时，或2天）",
+    "plan": "针对当前阶段的具体行动规划建议（分点列出实操动作）",
     "analysis": {{
         "overdue": [{{"task_id": 1, "task_name": "name", "days_overdue": 2}}],
         "progress_stalled": [{{"task_id": 2, "task_name": "name", "days_no_update": 5}}],
@@ -403,6 +408,8 @@ JSON：{{
             due = task.get("due_date", "")
             status = task.get("status", "pending")
             progress = task.get("progress", 0)
+            parent = task.get("parent_id")
+            parent_str = f"| 父级ID:{parent} " if parent is not None else ""
             remaining = ""
             if due:
                 try:
@@ -410,7 +417,7 @@ JSON：{{
                     remaining = f"剩余{(due_date - now).days}天" if due_date > now else "已逾期"
                 except:
                     pass
-            lines.append(f"- 任务{task['id']}: {task['name']} | {status} | {progress}% | {remaining}")
+            lines.append(f"- 任务{task['id']}: {task['name']} {parent_str}| {status} | {progress}% | {remaining}")
         return "\n".join(lines) if lines else "暂无任务"
 
     def _build_analysis_dims(self, config: dict) -> str:
@@ -524,6 +531,9 @@ JSON：{{
                     "priority": data.get("priority", "low"),
                     "message": data.get("message", ""),
                     "tasks_to_remind": data.get("tasks_to_remind", []),
+                    "current_stage": data.get("current_stage", ""),
+                    "next_key_node": data.get("next_key_node", ""),
+                    "estimated_time_for_next_node": data.get("estimated_time_for_next_node", ""),
                     "plan": data.get("plan", ""),
                     "analysis": data.get("analysis", {})
                 }
@@ -538,6 +548,9 @@ JSON：{{
             "priority": "low",
             "message": "",
             "tasks_to_remind": [],
+            "current_stage": "",
+            "next_key_node": "",
+            "estimated_time_for_next_node": "",
             "plan": "",
             "analysis": {}
         }
@@ -576,6 +589,9 @@ JSON：{{
             "priority": priority,
             "message": f"您有{len(task_ids)}个任务需要关注",
             "tasks_to_remind": task_ids,
+            "current_stage": "状态检测期",
+            "next_key_node": "处理逾期任务",
+            "estimated_time_for_next_node": "尽快",
             "plan": "请优先处理逾期任务",
             "analysis": analysis
         }

@@ -110,7 +110,6 @@ class ActionExecutor:
     ) -> ActionResult:
         """处理: 查询任务列表"""
         query = select(Task).where(
-            or_(Task.assignee_id == user_id),
             Task.status.in_(["pending", "in_progress"]),
         ).order_by(
             Task.due_date.asc().nulls_last(),
