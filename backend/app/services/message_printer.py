@@ -28,7 +28,8 @@ class MessagePrinterService:
         
         for i, task in enumerate(tasks, 1):
             status_icon = self._get_status_icon(task.status)
-            task_line = f"{i}. {status_icon} **{task.name}**"
+            project_name = f"【{task.project.name}】" if getattr(task, 'project', None) else ""
+            task_line = f"{i}. {status_icon} {project_name}**{task.name}**"
             
             # 添加状态标签
             status_tag = self.format_status_tag(task.status)

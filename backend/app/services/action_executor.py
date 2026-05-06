@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
+from sqlalchemy.orm import selectinload
 
 from app.models import Task, Project
 from app.services.slash_commands import IntentType, IntentResult
@@ -109,7 +110,7 @@ class ActionExecutor:
         self, intent: IntentResult, user_id: int
     ) -> ActionResult:
         """处理: 查询任务列表"""
-        query = select(Task).where(
+        query = select(Task).options(selectinload(Task.project)).where(
             Task.status.in_(["pending", "in_progress"]),
         ).order_by(
             Task.due_date.asc().nulls_last(),
