@@ -24,34 +24,46 @@ class MessagePrinterService:
         if not tasks:
             return "暂无任务"
         
+        from collections import defaultdict
+        project_groups = defaultdict(list)
+        
+        for task in tasks:
+            project_name = task.project.name if getattr(task, 'project', None) else "未分类任务"
+            project_groups[project_name].append(task)
+            
         lines = ["**任务列表**\n"]
         
-        for i, task in enumerate(tasks, 1):
-            status_icon = self._get_status_icon(task.status)
-            project_name = f"【{task.project.name}】" if getattr(task, 'project', None) else ""
-            task_line = f"{i}. {status_icon} {project_name}**{task.name}**"
+        task_index = 1
+        for proj_name, proj_tasks in project_groups.items():
+            lines.append(f"### 📁 【{proj_name}】")
             
-            # 添加状态标签
-            status_tag = self.format_status_tag(task.status)
-            task_line += f" {status_tag}"
-            
-            # 添加进度
-            if show_progress and task.progress is not None:
-                progress_bar = self.format_progress_bar(task.progress)
-                task_line += f"\n   {progress_bar}"
-            
-            # 添加截止日期
-            if task.due_date:
-                due_date_str = task.due_date.strftime('%Y-%m-%d')
-                is_overdue = task.due_date < date.today()
-                if is_overdue:
-                    task_line += f"\n   ⚠️ 截止日期: {due_date_str} (已逾期)"
-                else:
-                    task_line += f"\n   📅 截止日期: {due_date_str}"
-            
-            lines.append(task_line)
+            for task in proj_tasks:
+                status_icon = self._get_status_icon(task.status)
+                task_line = f"{task_index}. {status_icon} **{task.name}**"
+                
+                # 添加状态标签
+                status_tag = self.format_status_tag(task.status)
+                task_line += f" {status_tag}"
+                
+                # 添加进度
+                if show_progress and task.progress is not None:
+                    progress_bar = self.format_progress_bar(task.progress)
+                    task_line += f"\n   {progress_bar}"
+                
+                # 添加截止日期
+                if task.due_date:
+                    due_date_str = task.due_date.strftime('%Y-%m-%d')
+                    is_overdue = task.due_date < date.today()
+                    if is_overdue:
+                        task_line += f"\n   ⚠️ 截止日期: {due_date_str} (已逾期)"
+                    else:
+                        task_line += f"\n   📅 截止日期: {due_date_str}"
+                
+                lines.append(task_line)
+                lines.append("") # 任务之间留空行
+                task_index += 1
         
-        return "\n\n".join(lines)
+        return "\n".join(lines).strip()
     
     def format_progress_bar(self, progress: int) -> str:
         """
