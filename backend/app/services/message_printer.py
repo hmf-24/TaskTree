@@ -33,10 +33,14 @@ class MessagePrinterService:
             
         lines = ["**任务列表**\n"]
         
-        task_index = 1
+        chinese_nums = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"]
+        
+        project_index = 1
         for proj_name, proj_tasks in project_groups.items():
-            lines.append(f"### 📁 【{proj_name}】")
+            proj_num_str = chinese_nums[project_index] if project_index < len(chinese_nums) else str(project_index)
+            lines.append(f"### 📁 {proj_num_str}、 【{proj_name}】")
             
+            task_index = 1
             for task in proj_tasks:
                 status_icon = self._get_status_icon(task.status)
                 task_line = f"{task_index}. {status_icon} **{task.name}**"
@@ -62,6 +66,8 @@ class MessagePrinterService:
                 lines.append(task_line)
                 lines.append("") # 任务之间留空行
                 task_index += 1
+            
+            project_index += 1
         
         return "\n".join(lines).strip()
     
