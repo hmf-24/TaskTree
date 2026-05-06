@@ -132,6 +132,23 @@ async def list_projects(
     result = await db.execute(query)
     projects = result.scalars().all()
 
+    # 统计任务数和已完成数
+    project_ids = [p.id for p in projects]
+    stats_map = {}
+    if project_ids:
+        stats_query = select(
+            Task.project_id,
+            func.count(Task.id).label('total'),
+            func.sum(case((Task.status == "completed", 1), else_=0)).label('completed')
+        ).where(Task.project_id.in_(project_ids)).group_by(Task.project_id)
+        
+        stats_result = await db.execute(stats_query)
+        for row in stats_result.all():
+            stats_map[row.project_id] = {
+                "task_count": row.total or 0,
+                "completed_count": row.completed or 0
+            }
+
     return MessageResponse(
         data={
             "items": [
@@ -142,7 +159,9 @@ async def list_projects(
                     "owner_id": p.owner_id,
                     "status": p.status,
                     "is_archived": p.is_archived,
-                    "created_at": p.created_at.isoformat()
+                    "created_at": p.created_at.isoformat(),
+                    "task_count": stats_map.get(p.id, {}).get("task_count", 0),
+                    "completed_count": stats_map.get(p.id, {}).get("completed_count", 0)
                 }
                 for p in projects
             ],
