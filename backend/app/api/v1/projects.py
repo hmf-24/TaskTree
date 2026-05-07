@@ -7,7 +7,7 @@ TaskTree 项目管理路由
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, case
+from sqlalchemy import select, func, and_, case, text
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models import User, Project, ProjectMember, Task
@@ -236,19 +236,44 @@ async def update_project(
 @router.delete("/{project_id}", response_model=MessageResponse)
 async def delete_project(
     project_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """删除项目及其所有关联数据（任务、成员、标签等）"""
-    project = await get_project_with_access(project_id, db, current_user, require_owner=True)
+    # 不使用依赖注入的db，直接使用独立连接
+    from app.core.database import get_engine
+    engine = get_engine()
     
     try:
-        # 级联删除会自动处理所有关联数据
-        await db.delete(project)
-        await db.commit()
+        async with engine.begin() as conn:
+            # 启用外键约束
+            await conn.execute(text("PRAGMA foreign_keys = ON"))
+            
+            # 验证权限
+            result = await conn.execute(
+                text("SELECT owner_id FROM projects WHERE id = :project_id"),
+                {"project_id": project_id}
+            )
+            row = result.fetchone()
+            
+            if not row:
+                raise HTTPException(status_code=404, detail="项目不存在")
+            
+            if row[0] != current_user.id:
+                result = await conn.execute(
+                    text("SELECT 1 FROM project_members WHERE project_id = :project_id AND user_id = :user_id"),
+                    {"project_id": project_id, "user_id": current_user.id}
+                )
+                if not result.fetchone():
+                    raise HTTPException(status_code=403, detail="没有权限访问此项目")
+                raise HTTPException(status_code=403, detail="需要项目所有者权限")
+            
+            # 删除项目（外键会自动级联删除或SET NULL）
+            await conn.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": project_id})
+        
         return MessageResponse(message="删除成功")
+    except HTTPException:
+        raise
     except Exception as e:
-        await db.rollback()
         raise HTTPException(status_code=500, detail=f"删除项目失败: {str(e)}")
 
 

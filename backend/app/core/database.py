@@ -18,11 +18,22 @@ def get_engine():
     global _engine
     if _engine is None:
         from app.core.config import settings
+        
+        # 为SQLite启用外键约束
+        def _fk_pragma_on_connect(dbapi_conn, connection_record):
+            dbapi_conn.execute("PRAGMA foreign_keys=ON")
+        
         _engine = create_async_engine(
             settings.DATABASE_URL,
             echo=settings.DEBUG,
-            future=True
+            future=True,
+            connect_args={"check_same_thread": False}
         )
+        
+        # 注册连接事件监听器
+        from sqlalchemy import event
+        event.listen(_engine.sync_engine, "connect", _fk_pragma_on_connect)
+    
     return _engine
 
 

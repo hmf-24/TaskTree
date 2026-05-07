@@ -10,7 +10,7 @@ Base 在此处统一定义，其他模块（如 database.py）从此处导入，
 避免多次创建 Base 实例导致 mapper 关联失效。
 """
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship, DeclarativeBase
+from sqlalchemy.orm import relationship, DeclarativeBase, backref
 from datetime import datetime, timezone
 
 
@@ -278,7 +278,7 @@ class AIConversation(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True, comment="用户 ID")
-    project_id = Column(Integer, ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True, comment="项目 ID")
+    project_id = Column(Integer, ForeignKey('projects.id', ondelete='SET NULL'), index=True, comment="项目 ID")
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='SET NULL'), index=True, comment="任务 ID (可选,修改模式时使用)")
     conversation_type = Column(String(20), nullable=False, comment="对话类型: create/analyze/modify/plan")
     title = Column(String(255), comment="对话标题")
@@ -288,9 +288,9 @@ class AIConversation(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # 关联关系
-    user = relationship('User', backref='ai_conversations')
-    project = relationship('Project', backref='ai_conversations')
-    task = relationship('Task', backref='ai_conversations')
+    user = relationship('User')
+    project = relationship('Project')
+    task = relationship('Task')
 
     @property
     def messages_list(self) -> list:
