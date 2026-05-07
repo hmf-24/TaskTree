@@ -192,3 +192,44 @@ docker run --rm -v tasktree_tasktree-data:/data -v $(pwd)/backups:/backup \
 - [Docker 使用指南](../../DOCKER_README.md)
 - [开发记录](../00-开发记录.md)
 - [API 接口文档](API接口.md)
+
+
+## 2026-05-07 项目删除功能修复
+
+### 问题描述
+项目删除功能失败，错误信息：`NOT NULL constraint failed: ai_conversations.project_id`
+
+### 根本原因
+1. `ai_conversations`表的`project_id`字段设置为NOT NULL
+2. SQLAlchemy在请求结束时尝试将关联的AI对话记录的`project_id`设置为NULL（因为project被删除）
+3. 由于NOT NULL约束导致失败
+
+### 解决方案
+1. **修改数据库模型** (`backend/app/models/__init__.py`)
+   - 将`AIConversation.project_id`改为可空字段
+   - 修改外键约束为`ON DELETE SET NULL`
+   - 移除可能导致问题的backref关联
+
+2. **优化删除逻辑** (`backend/app/api/v1/projects.py`)
+   - 使用独立的数据库连接，避免ORM session干扰
+   - 在删除前启用外键约束（`PRAGMA foreign_keys = ON`）
+   - 简化删除逻辑，依赖数据库的级联删除
+
+3. **添加外键启用配置** (`backend/app/core/database.py`)
+   - 在数据库连接时自动启用SQLite的外键约束
+
+4. **创建数据库迁移脚本**
+   - `backend/migrations/allow_ai_conversations_null_project.py` - 修改表结构
+   - `backend/migrations/fix_ai_conversations_cascade.py` - 修复外键配置
+
+5. **重新创建Docker volume**
+   - 删除旧的`tasktree_tasktree-data` volume
+   - 重新启动服务，应用新的表结构
+
+### 验证结果
+✅ 项目删除功能已完全修复
+✅ 可以成功删除项目及其所有关联数据
+✅ 外键级联删除正常工作
+
+### 相关提交
+- commit: 4bf55f6 - "fix: 修复项目删除功能 - 允许ai_conversations.project_id为NULL并优化删除逻辑"
