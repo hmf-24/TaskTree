@@ -15,3 +15,8 @@ cryptography==41.0.7
 
 # 钉钉 Stream 模式 SDK
 dingtalk-stream==0.24.3
+
+# ReadHub — RSS 解析与内容处理
+feedparser==6.0.11
+readability-lxml==0.8.1
+markdownify==0.13.1

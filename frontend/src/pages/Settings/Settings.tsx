@@ -183,7 +183,10 @@ export default function Settings() {
       });
       if (res.code === 200) { message.success('智能提醒设置已保存'); }
       else { message.error(res.message || '保存失败'); }
-    } catch (error: any) { message.error(error.message || '保存失败'); }
+    } catch (error: any) { 
+      message.error(error.detail || error.message || '保存失败');
+      console.error('保存智能提醒设置失败:', error);
+    }
     finally { setLoadingReminder(false); }
   };
 

@@ -233,3 +233,27 @@ docker run --rm -v tasktree_tasktree-data:/data -v $(pwd)/backups:/backup \
 
 ### 相关提交
 - commit: 4bf55f6 - "fix: 修复项目删除功能 - 允许ai_conversations.project_id为NULL并优化删除逻辑"
+
+## 2026-05-12 ReadHub 自动化闭环与知识沉淀 (阶段三)
+
+### 新增功能
+1. **ReadHub 专属设置系统**
+   - 数据库新增 `readhub_settings` 表用于存储每个用户的独立配置（Obsidian Vault 路径、自动拉取间隔等）。
+   - 前端新增 ReadHub 设置页面（`/app/readhub/settings`），允许用户直接在 UI 配置 Obsidian 知识库集成。
+2. **Obsidian 知识沉淀服务**
+   - 实现 `obsidian_service.py`：支持将 RSS 订阅文章（HTML）自动转化为 Markdown 格式。
+   - 自动在 Markdown 头部生成 YAML Frontmatter（包含 title, source, author, date, tags 等元数据）。
+   - 一键将文章安全写入本地 Obsidian Vault 指定目录中。
+3. **文章转任务链路打通**
+   - ReadHub 前端文章详情页新增**"转为任务"**按钮，支持选择目标项目。
+   - 后端新增 `POST /articles/{id}/convert-to-task` 接口，自动带上文章来源链接与摘要并存入 TaskTree。
+4. **钉钉 AI 机器人扩展 (ReadHub 专属命令)**
+   - `/read` (或 `/阅读`、`/订阅`): 在钉钉中获取今日未读文章摘要及链接。
+   - `/save <ID>` (或 `/保存`): 在钉钉中通过命令直接将指定文章推送到本地 Obsidian。
+   - `/convert <ID> [项目名]` (或 `/转任务`): 在钉钉中通过命令直接将文章转化为工作任务。
+   - 更新系统 `/help` 菜单，按 TaskTree 与 ReadHub 分组展示可用指令。
+
+### 验证状态
+✅ 后端服务启动正常，`readhub_settings` 表已自动创建。
+✅ 前端路由与侧边栏成功挂载设置面板，文章操作按钮交互正常。
+✅ 钉钉斜杠命令扩展及动作执行器联调通过。

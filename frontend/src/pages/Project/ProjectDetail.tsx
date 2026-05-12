@@ -795,7 +795,7 @@ export default function ProjectDetail() {
         <Button
           type="text"
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/app/tasktree')}
           style={{ color: 'var(--color-ink-secondary)' }}
         />
         <div style={{ flex: 1 }}>

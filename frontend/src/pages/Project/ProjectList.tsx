@@ -120,7 +120,7 @@ export default function ProjectList() {
       key: 'enter',
       label: '进入项目',
       icon: <FolderOpenOutlined />,
-      onClick: () => navigate(`/project/${project.id}`),
+      onClick: () => navigate(`/app/tasktree/project/${project.id}`),
     },
     {
       type: 'divider' as const,
@@ -144,129 +144,108 @@ export default function ProjectList() {
       <Helmet><title>项目列表 - TaskTree</title></Helmet>
       <div className="flex justify-between items-center mb-6">
         <h1 className="page-title" style={{ margin: 0 }}>我的项目</h1>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
-          新建项目
-        </Button>
+        {(projects.length > 0 || loading) && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
+            新建项目
+          </Button>
+        )}
       </div>
 
       <Spin spinning={loading}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
-          {/* 新建项目卡片占位 */}
-          <div
-            className="stagger-item glass-panel"
-            style={{
-              border: '2px dashed var(--color-border)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 24,
-              minHeight: 180,
-              cursor: 'pointer',
-              transition: 'all var(--duration-fast) var(--ease-smooth)',
-              animationDelay: '0ms',
-            }}
-            onClick={() => setModalVisible(true)}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border-strong)'; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)'; }}
+        {projects.length === 0 && !loading ? (
+          <Empty
+            description="还没有任何项目"
+            style={{ padding: 64 }}
           >
-            <PlusOutlined style={{ fontSize: 32, color: 'var(--color-ink-tertiary)', marginBottom: 12 }} />
-            <span style={{ color: 'var(--color-ink-secondary)', fontWeight: 500 }}>创建新项目</span>
-          </div>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
+              创建第一个项目
+            </Button>
+          </Empty>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+            {projects.map((project, index) => (
+              <div
+                key={project.id}
+                className="stagger-item glass-panel"
+                style={{
+                  padding: 20,
+                  cursor: 'pointer',
+                  transition: 'all var(--duration-normal) var(--ease-smooth)',
+                  animationDelay: `${(index + 1) * 50}ms`,
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 180,
+                }}
+                onClick={() => navigate(`/app/tasktree/project/${project.id}`)}
+                onMouseEnter={(e) => {
+                  const target = e.currentTarget as HTMLElement;
+                  target.style.transform = 'translateY(-2px)';
+                  target.style.boxShadow = 'var(--shadow-card)';
+                  target.style.borderColor = 'var(--color-border-strong)';
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.currentTarget as HTMLElement;
+                  target.style.transform = 'translateY(0)';
+                  target.style.boxShadow = 'none';
+                  target.style.borderColor = 'var(--color-border)';
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', letterSpacing: '-0.01em', lineHeight: 1.4 }}>
+                    {project.name}
+                  </h3>
+                  <Dropdown
+                    menu={{ items: getMenuItems(project) }}
+                    trigger={['click']}
+                  >
+                    <Button
+                      type="text"
+                      icon={<MoreOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: 'var(--color-ink-tertiary)', padding: '0 4px', height: 24, marginTop: -4, marginRight: -8 }}
+                    />
+                  </Dropdown>
+                </div>
 
-          {projects.map((project, index) => (
-            <div
-              key={project.id}
-              className="stagger-item glass-panel"
-              style={{
-                padding: 20,
-                cursor: 'pointer',
-                transition: 'all var(--duration-normal) var(--ease-smooth)',
-                animationDelay: `${(index + 1) * 50}ms`,
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 180,
-              }}
-              onClick={() => navigate(`/project/${project.id}`)}
-              onMouseEnter={(e) => {
-                const target = e.currentTarget as HTMLElement;
-                target.style.transform = 'translateY(-2px)';
-                target.style.boxShadow = 'var(--shadow-card)';
-                target.style.borderColor = 'var(--color-border-strong)';
-              }}
-              onMouseLeave={(e) => {
-                const target = e.currentTarget as HTMLElement;
-                target.style.transform = 'translateY(0)';
-                target.style.boxShadow = 'none';
-                target.style.borderColor = 'var(--color-border)';
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', letterSpacing: '-0.01em', lineHeight: 1.4 }}>
-                  {project.name}
-                </h3>
-                <Dropdown
-                  menu={{ items: getMenuItems(project) }}
-                  trigger={['click']}
-                >
-                  <Button
-                    type="text"
-                    icon={<MoreOutlined />}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ color: 'var(--color-ink-tertiary)', padding: '0 4px', height: 24, marginTop: -4, marginRight: -8 }}
-                  />
-                </Dropdown>
-              </div>
+                {project.description && (
+                  <p style={{
+                    color: 'var(--color-ink-secondary)',
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    marginBottom: 16,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {project.description}
+                  </p>
+                )}
 
-              {project.description && (
-                <p style={{
-                  color: 'var(--color-ink-secondary)',
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  marginBottom: 16,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
+                <div style={{
+                  display: 'flex',
+                  gap: 16,
+                  fontSize: 12,
+                  color: 'var(--color-ink-tertiary)',
+                  marginTop: 'auto',
+                  paddingTop: 16,
+                  borderTop: '1px solid var(--color-border)'
                 }}>
-                  {project.description}
-                </p>
-              )}
-
-              <div style={{
-                display: 'flex',
-                gap: 16,
-                fontSize: 12,
-                color: 'var(--color-ink-tertiary)',
-                marginTop: 'auto',
-                paddingTop: 16,
-                borderTop: '1px solid var(--color-border)'
-              }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-brand)' }} />
-                  <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-ink)' }}>{project.task_count || 0}</span> 任务
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#346538' }} />
-                  <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-ink)' }}>{project.completed_count || 0}</span> 已完成
-                </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-brand)' }} />
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-ink)' }}>{project.task_count || 0}</span> 任务
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#346538' }} />
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-ink)' }}>{project.completed_count || 0}</span> 已完成
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Spin>
-
-      {projects.length === 0 && !loading && (
-        <Empty
-          description="还没有任何项目"
-          style={{ padding: 64 }}
-        >
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
-            创建第一个项目
-          </Button>
-        </Empty>
-      )}
 
       <Modal
         title="新建项目"

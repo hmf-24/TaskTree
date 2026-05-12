@@ -44,5 +44,8 @@ class Settings(BaseSettings):
     DINGTALK_CLIENT_SECRET: str = ""  # 钉钉AppSecret
     DINGTALK_STREAM_ENABLED: bool = False  # 是否启用Stream模式
 
+    # ---- ReadHub (RSS) ----
+    WEWERSS_HOST: str = ""  # WeweRSS 服务地址，例如 http://localhost:4000
+
 
 settings = Settings()

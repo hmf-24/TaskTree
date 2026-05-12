@@ -22,6 +22,7 @@ from app.core.exceptions import (
     generic_exception_handler
 )
 from app.api.v1 import auth, projects, tasks, users, export, notifications, notification_settings, llm_tasks, conversations, attachments, dingtalk
+from app.apps.readhub.router import router as readhub_router
 
 
 @asynccontextmanager
@@ -84,6 +85,9 @@ app.include_router(llm_tasks.router, prefix="/api/v1/tasktree", tags=["AI智能�
 app.include_router(conversations.router, prefix="/api/v1/tasktree", tags=["AI对话"])
 app.include_router(attachments.router, prefix="/api/v1/tasktree", tags=["附件"])
 app.include_router(dingtalk.router, tags=["钉钉智能助手"])
+
+# ---- ReadHub 应用路由 ----
+app.include_router(readhub_router, prefix="/api/v1/readhub", tags=["ReadHub"])
 
 # 挂载静态文件目录（用于访问上传的文件）
 uploads_dir = Path("uploads")

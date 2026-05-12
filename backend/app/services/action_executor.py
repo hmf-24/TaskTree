@@ -58,6 +58,10 @@ class ActionExecutor:
             IntentType.ANALYZE_PROJECT: self._handle_analyze_project,
             IntentType.PLAN_PROJECT: self._handle_plan_project,
             IntentType.GENERAL_CHAT: self._handle_general_chat,
+            # ---- ReadHub 扩展 ----
+            IntentType.READ_BRIEFING: self._handle_read_briefing,
+            IntentType.SAVE_TO_OBSIDIAN: self._handle_save_to_obsidian,
+            IntentType.CONVERT_TO_TASK: self._handle_convert_to_task,
         }
     
     async def execute(
@@ -681,3 +685,183 @@ class ActionExecutor:
                     return matched[0]
         
         return None
+
+    # ── ReadHub 扩展处理器 ──────────────────────────────────────────
+
+    async def _handle_read_briefing(
+        self, intent: IntentResult, user_id: int
+    ) -> ActionResult:
+        """处理 /read — 获取未读文章摘要"""
+        try:
+            from app.apps.readhub.service import RssService
+            
+            limit = intent.params.get("limit", 10)
+            result = await RssService.get_articles(
+                self.db, user_id, unread_only=True, page_size=limit
+            )
+            articles = result["items"]
+            total = result["total"]
+            
+            if not articles:
+                return ActionResult(
+                    success=True,
+                    message="📰 **ReadHub 日报**\n\n🎉 没有未读文章，您已全部阅读！",
+                    title="ReadHub",
+                )
+            
+            lines = [f"📰 **ReadHub 日报** （共 {total} 篇未读）\n"]
+            for i, article in enumerate(articles, 1):
+                title = article.title
+                author = f" · {article.author}" if article.author else ""
+                pub = ""
+                if article.published_at:
+                    pub = f" · {article.published_at.strftime('%m-%d')}"
+                lines.append(f"{i}. **{title}**{author}{pub}  \n   ID: `#{article.id}` | [原文]({article.source_url})")
+            
+            if total > limit:
+                lines.append(f"\n> 还有 {total - limit} 篇未读，使用 `/read {limit + 10}` 查看更多")
+            
+            lines.append("\n---")
+            lines.append("💡 使用 `/save <ID>` 保存到 Obsidian | `/convert <ID>` 转为任务")
+            
+            return ActionResult(
+                success=True,
+                message="\n".join(lines),
+                title="ReadHub",
+            )
+        except Exception as e:
+            return ActionResult(
+                success=False,
+                message=f"❌ 获取未读文章失败：{e}",
+                title="ReadHub",
+            )
+
+    async def _handle_save_to_obsidian(
+        self, intent: IntentResult, user_id: int
+    ) -> ActionResult:
+        """处理 /save — 保存文章到 Obsidian"""
+        try:
+            from app.apps.readhub.obsidian_service import ObsidianService
+            
+            article_id = intent.params.get("article_id")
+            if not article_id:
+                return ActionResult(
+                    success=False,
+                    message="请指定文章 ID，例如：`/save 42`",
+                    title="ReadHub",
+                )
+            
+            result = await ObsidianService.save_article_to_vault(
+                self.db, article_id, user_id
+            )
+            return ActionResult(
+                success=True,
+                message=f"✅ 文章已保存到 Obsidian\n📁 路径：`{result['file_path']}`",
+                title="ReadHub",
+            )
+        except ValueError as e:
+            return ActionResult(
+                success=False,
+                message=f"❌ {e}",
+                title="ReadHub",
+            )
+        except Exception as e:
+            return ActionResult(
+                success=False,
+                message=f"❌ 保存失败：{e}",
+                title="ReadHub",
+            )
+
+    async def _handle_convert_to_task(
+        self, intent: IntentResult, user_id: int
+    ) -> ActionResult:
+        """处理 /convert — 将文章转为 TaskTree 任务"""
+        try:
+            from app.apps.readhub.service import RssService
+            from datetime import datetime, timezone
+            
+            article_id = intent.params.get("article_id")
+            if not article_id:
+                return ActionResult(
+                    success=False,
+                    message="请指定文章 ID，例如：`/convert 42`",
+                    title="ReadHub",
+                )
+            
+            # 获取文章
+            article = await RssService.get_article_detail(
+                self.db, article_id, user_id
+            )
+            if not article:
+                return ActionResult(
+                    success=False,
+                    message=f"❌ 文章 #{article_id} 不存在",
+                    title="ReadHub",
+                )
+            
+            # 查找目标项目
+            project_name = intent.params.get("project_name")
+            if project_name:
+                proj_result = await self.db.execute(
+                    select(Project).where(
+                        Project.name.ilike(f"%{project_name}%")
+                    )
+                )
+                project = proj_result.scalar_one_or_none()
+                if not project:
+                    return ActionResult(
+                        success=False,
+                        message=f"❌ 未找到项目：{project_name}",
+                        title="ReadHub",
+                    )
+            else:
+                # 默认使用用户的第一个项目
+                proj_result = await self.db.execute(
+                    select(Project).where(
+                        Project.created_by == user_id
+                    ).order_by(Project.created_at.desc()).limit(1)
+                )
+                project = proj_result.scalar_one_or_none()
+                if not project:
+                    return ActionResult(
+                        success=False,
+                        message="❌ 您还没有创建任何项目，请先创建项目后再使用此功能",
+                        title="ReadHub",
+                    )
+            
+            # 创建任务
+            task_title = f"[阅读] {article.title}"
+            task_desc = f"来源：{article.source_url}\n\n"
+            if article.summary:
+                task_desc += f"{article.summary[:500]}\n"
+            
+            task = Task(
+                project_id=project.id,
+                title=task_title,
+                description=task_desc,
+                status="todo",
+                priority="medium",
+                created_by=user_id,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            self.db.add(task)
+            await self.db.commit()
+            await self.db.refresh(task)
+            
+            return ActionResult(
+                success=True,
+                message=(
+                    f"✅ 已创建任务\n\n"
+                    f"**{task_title}**\n"
+                    f"📁 项目：{project.name}\n"
+                    f"🔗 任务 ID：#{task.id}"
+                ),
+                title="ReadHub",
+            )
+        except Exception as e:
+            return ActionResult(
+                success=False,
+                message=f"❌ 转化任务失败：{e}",
+                title="ReadHub",
+            )

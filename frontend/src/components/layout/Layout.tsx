@@ -1,64 +1,57 @@
-import React, { useState } from 'react';
-import { Layout as AntLayout, Menu, Avatar, Dropdown, Typography } from 'antd';
+import { useState } from 'react';
+import { Layout as AntLayout, Menu, Typography } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import {
-  UserOutlined, LogoutOutlined, SettingOutlined, HomeOutlined,
-  MenuFoldOutlined, MenuUnfoldOutlined,
-} from '@ant-design/icons';
-import { useAuthStore } from '../../stores/auth';
-import NotificationPanel from '../notification/NotificationPanel';
+import { ProjectOutlined, SettingOutlined, ReadOutlined, AppstoreOutlined } from '@ant-design/icons';
+import TopBar from './TopBar';
 
-const { Header, Sider, Content } = AntLayout;
+const { Sider, Content } = AntLayout;
 const { Text } = Typography;
 
 export default function Layout() {
-  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/auth/login');
-  };
+  const isReadHub = location.pathname.startsWith('/app/readhub');
+  const isTaskTree = location.pathname.startsWith('/app/tasktree');
+  
+  const appName = isReadHub ? 'ReadHub' : isTaskTree ? 'TaskTree' : 'Nexus';
+  const appLetter = isReadHub ? 'R' : isTaskTree ? 'T' : 'N';
 
-  const userMenu = {
-    items: [
-      {
-        key: 'profile',
-        label: '个人资料',
-        icon: <UserOutlined />,
-        onClick: () => navigate('/settings'),
-      },
-      {
-        key: 'settings',
-        label: '设置',
-        icon: <SettingOutlined />,
-        onClick: () => navigate('/settings'),
-      },
-      {
-        type: 'divider' as const,
-      },
-      {
-        key: 'logout',
-        label: '退出登录',
-        icon: <LogoutOutlined />,
-        onClick: handleLogout,
-        danger: true,
-      },
-    ],
-  };
-
-  const menuItems = [
+  const menuItems = isReadHub ? [
     {
-      key: '/',
-      icon: <HomeOutlined />,
-      label: '项目列表',
+      key: '/app/readhub',
+      icon: <ReadOutlined />,
+      label: '阅读中心',
     },
     {
-      key: '/settings',
+      key: '/app/readhub/settings',
       icon: <SettingOutlined />,
-      label: '设置',
+      label: 'ReadHub 设置',
+    },
+
+    {
+      type: 'divider',
+    },
+    {
+      key: '/',
+      icon: <AppstoreOutlined />,
+      label: '返回工作台',
+    },
+  ] : [
+    {
+      key: '/app/tasktree',
+      icon: <ProjectOutlined />,
+      label: '项目列表',
+    },
+
+    {
+      type: 'divider',
+    },
+    {
+      key: '/',
+      icon: <AppstoreOutlined />,
+      label: '返回工作台',
     },
   ];
 
@@ -87,7 +80,7 @@ export default function Layout() {
           flexDirection: 'column',
         }}
       >
-        {/* Logo */}
+        {/* Logo — 点击返回工作台首页 */}
         <div
           style={{
             height: 'var(--header-height)',
@@ -99,7 +92,7 @@ export default function Layout() {
             cursor: 'pointer',
             transition: 'padding 0.2s var(--ease-smooth)',
           }}
-          onClick={() => navigate('/')}
+          onClick={() => navigate(isReadHub ? '/app/readhub' : isTaskTree ? '/app/tasktree' : '/')}
         >
           {/* Logo Mark — 深灰纯色方块，取代紫蓝渐变 */}
           <div style={{
@@ -113,7 +106,7 @@ export default function Layout() {
               color: '#000', fontWeight: 700, fontSize: 14,
               fontFamily: 'var(--font-sans)',
               letterSpacing: '-0.02em',
-            }}>T</span>
+            }}>{appLetter}</span>
           </div>
           {!collapsed && (
             <span style={{
@@ -122,7 +115,7 @@ export default function Layout() {
               letterSpacing: '-0.02em',
               fontFamily: 'var(--font-sans)',
             }}>
-              TaskTree
+              {appName}
             </span>
           )}
         </div>
@@ -150,7 +143,7 @@ export default function Layout() {
                 letterSpacing: '0.02em',
               }}
             >
-              TaskTree v1.0.0
+              Nexus v1.0.0
             </Text>
           )}
         </div>
@@ -160,76 +153,11 @@ export default function Layout() {
         marginLeft: siderWidth,
         transition: 'margin-left 0.2s var(--ease-smooth)',
       }}>
-        <Header style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 24px',
-          background: 'var(--color-surface)',
-          backdropFilter: 'var(--glass-blur)',
-          WebkitBackdropFilter: 'var(--glass-blur)',
-          borderBottom: '1px solid var(--color-border)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 9,
-          height: 'var(--header-height)',
-          lineHeight: 'var(--header-height)',
-        }}>
-          <div
-            style={{
-              cursor: 'pointer', fontSize: 16,
-              color: 'var(--color-ink-tertiary)',
-              padding: 4,
-              borderRadius: 'var(--radius-button)',
-              transition: 'color 0.15s var(--ease-smooth), background 0.15s var(--ease-smooth)',
-            }}
-            onClick={() => setCollapsed(!collapsed)}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLDivElement).style.color = 'var(--color-ink)';
-              (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-active)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.color = 'var(--color-ink-tertiary)';
-              (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-            }}
-          >
-            {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <NotificationPanel />
-            <Dropdown menu={userMenu} placement="bottomRight">
-              <div style={{
-                display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 8,
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-button)',
-                transition: 'background 0.15s var(--ease-smooth)',
-              }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-active)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-                }}
-              >
-                <Avatar
-                  size={28}
-                  icon={<UserOutlined />}
-                  src={user?.avatar}
-                  style={{
-                    background: 'var(--color-brand)',
-                    fontSize: 12,
-                  }}
-                />
-                <span style={{
-                  fontWeight: 500, fontSize: 13,
-                  color: 'var(--color-ink)',
-                }}>
-                  {user?.nickname || user?.email}
-                </span>
-              </div>
-            </Dropdown>
-          </div>
-        </Header>
+        <TopBar
+          showSidebarToggle
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+        />
         <Content style={{
           background: 'var(--color-canvas)',
           minHeight: 'calc(100vh - var(--header-height))',

@@ -16,7 +16,7 @@ from enum import Enum
 
 
 class IntentType(str, Enum):
-    """意图类型枚举 — 8 种核心意图"""
+    """意图类型枚举 — 11 种核心意图"""
     QUERY_TASK_LIST = "query_task_list"
     QUERY_TASK_DETAIL = "query_task_detail"
     UPDATE_PROGRESS = "update_progress"
@@ -25,6 +25,10 @@ class IntentType(str, Enum):
     ANALYZE_PROJECT = "analyze_project"
     PLAN_PROJECT = "plan_project"
     GENERAL_CHAT = "general_chat"
+    # ---- ReadHub 扩展意图 ----
+    READ_BRIEFING = "read_briefing"
+    SAVE_TO_OBSIDIAN = "save_to_obsidian"
+    CONVERT_TO_TASK = "convert_to_task"
 
 
 @dataclass
@@ -140,6 +144,31 @@ class SlashCommandRouter:
                 usage="/help [命令名]",
                 intent=IntentType.GENERAL_CHAT,
                 parser=self._parse_help_args,
+            ),
+            # ---- ReadHub 扩展命令 ----
+            SlashCommand(
+                name="read",
+                aliases=["阅读", "订阅", "briefing"],
+                description="获取今日未读文章摘要",
+                usage="/read",
+                intent=IntentType.READ_BRIEFING,
+                parser=self._parse_read_args,
+            ),
+            SlashCommand(
+                name="save",
+                aliases=["保存", "收藏"],
+                description="保存文章到 Obsidian",
+                usage="/save <文章ID>",
+                intent=IntentType.SAVE_TO_OBSIDIAN,
+                parser=self._parse_save_args,
+            ),
+            SlashCommand(
+                name="convert",
+                aliases=["转任务", "转化"],
+                description="将文章转为 TaskTree 任务",
+                usage="/convert <文章ID> [项目名]",
+                intent=IntentType.CONVERT_TO_TASK,
+                parser=self._parse_convert_args,
             ),
         ]
         
@@ -428,6 +457,77 @@ class SlashCommandRouter:
             params={"help_text": help_text},
         )
     
+    # ── ReadHub 命令解析器 ──────────────────────────────────────────
+
+    def _parse_read_args(self, args: str) -> IntentResult:
+        """解析 /read 参数"""
+        params = {}
+        if args:
+            try:
+                params["limit"] = int(args.strip())
+            except ValueError:
+                params["limit"] = 10
+        else:
+            params["limit"] = 10
+        
+        return IntentResult(
+            intent=IntentType.READ_BRIEFING,
+            confidence=1.0,
+            params=params,
+        )
+    
+    def _parse_save_args(self, args: str) -> IntentResult:
+        """解析 /save <文章ID> 参数"""
+        if not args or not args.strip():
+            return IntentResult(
+                intent=IntentType.SAVE_TO_OBSIDIAN,
+                confidence=0.3,
+                clarification="请指定要保存的文章 ID，例如：`/save 42`",
+            )
+        
+        # 提取文章 ID
+        article_id_match = re.match(r'^#?(\d+)', args.strip())
+        if not article_id_match:
+            return IntentResult(
+                intent=IntentType.SAVE_TO_OBSIDIAN,
+                confidence=0.3,
+                clarification=f"无法识别文章 ID: {args.strip()}，请使用数字 ID，例如：`/save 42`",
+            )
+        
+        return IntentResult(
+            intent=IntentType.SAVE_TO_OBSIDIAN,
+            confidence=1.0,
+            params={"article_id": int(article_id_match.group(1))},
+        )
+    
+    def _parse_convert_args(self, args: str) -> IntentResult:
+        """解析 /convert <文章ID> [项目名] 参数"""
+        if not args or not args.strip():
+            return IntentResult(
+                intent=IntentType.CONVERT_TO_TASK,
+                confidence=0.3,
+                clarification="请指定要转化的文章 ID，例如：`/convert 42` 或 `/convert 42 我的项目`",
+            )
+        
+        parts = args.strip().split(None, 1)
+        article_id_match = re.match(r'^#?(\d+)', parts[0])
+        if not article_id_match:
+            return IntentResult(
+                intent=IntentType.CONVERT_TO_TASK,
+                confidence=0.3,
+                clarification=f"无法识别文章 ID: {parts[0]}，请使用数字 ID，例如：`/convert 42`",
+            )
+        
+        params = {"article_id": int(article_id_match.group(1))}
+        if len(parts) > 1:
+            params["project_name"] = parts[1].strip()
+        
+        return IntentResult(
+            intent=IntentType.CONVERT_TO_TASK,
+            confidence=1.0,
+            params=params,
+        )
+
     # ── 工具方法 ──────────────────────────────────────────────────
 
     def _parse_task_reference(self, text: str) -> Optional[Dict[str, Any]]:
@@ -453,18 +553,45 @@ class SlashCommandRouter:
                 seen.add(cmd.name)
                 unique_commands.append(cmd)
         
-        lines = ["## 📋 TaskTree 命令帮助\n"]
-        for cmd in unique_commands:
-            aliases_str = ", ".join(f"/{a}" for a in cmd.aliases[:2])
-            lines.append(
-                f"**/{cmd.name}** ({aliases_str})\n"
-                f"  {cmd.description}\n"
-                f"  用法: `{cmd.usage}`\n"
-            )
+        lines = ["## 📋 Nexus 命令帮助\n"]
+        
+        # 分组显示
+        task_cmds = [c for c in unique_commands if c.intent.value not in ('read_briefing', 'save_to_obsidian', 'convert_to_task', 'general_chat')]
+        hub_cmds = [c for c in unique_commands if c.intent.value in ('read_briefing', 'save_to_obsidian', 'convert_to_task')]
+        other_cmds = [c for c in unique_commands if c.intent.value == 'general_chat']
+        
+        if task_cmds:
+            lines.append("### 📝 TaskTree\n")
+            for cmd in task_cmds:
+                aliases_str = ", ".join(f"/{a}" for a in cmd.aliases[:2])
+                lines.append(
+                    f"**/{cmd.name}** ({aliases_str})\n"
+                    f"  {cmd.description}\n"
+                    f"  用法: `{cmd.usage}`\n"
+                )
+        
+        if hub_cmds:
+            lines.append("### 📰 ReadHub\n")
+            for cmd in hub_cmds:
+                aliases_str = ", ".join(f"/{a}" for a in cmd.aliases[:2])
+                lines.append(
+                    f"**/{cmd.name}** ({aliases_str})\n"
+                    f"  {cmd.description}\n"
+                    f"  用法: `{cmd.usage}`\n"
+                )
+        
+        if other_cmds:
+            for cmd in other_cmds:
+                aliases_str = ", ".join(f"/{a}" for a in cmd.aliases[:2])
+                lines.append(
+                    f"**/{cmd.name}** ({aliases_str})\n"
+                    f"  {cmd.description}\n"
+                    f"  用法: `{cmd.usage}`\n"
+                )
         
         lines.append(
             "\n---\n"
-            "💡 也可以直接用自然语言描述，如:\n"
+            "💡 也可以直接用自然语言描述，如：\n"
             "「我的任务」「用户登录完成了」「创建一个搜索功能的任务」"
         )
         

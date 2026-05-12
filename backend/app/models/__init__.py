@@ -13,7 +13,6 @@ from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, F
 from sqlalchemy.orm import relationship, DeclarativeBase, backref
 from datetime import datetime, timezone
 
-
 class Base(DeclarativeBase):
     """SQLAlchemy 声明式基类（2.0 风格）"""
     pass
@@ -344,3 +343,7 @@ class ProgressFeedback(Base):
         """设置解析结果"""
         import json
         self.parsed_result = json.dumps(value, ensure_ascii=False)
+
+
+# ---- 外部应用模型导入（放在文件末尾，Base 已定义后） ----
+from app.models.rss import RssFeed, RssArticle, ReadHubSettings  # noqa: F401

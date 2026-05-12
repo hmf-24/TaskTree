@@ -133,7 +133,6 @@ async def create_or_update_settings(
 ):
     """创建或更新用户的通知设置"""
     import asyncio
-    from app.services.dingtalk_stream_client import restart_user_stream_client
     
     result = await db.execute(
         select(UserNotificationSettings).where(
@@ -204,6 +203,7 @@ async def create_or_update_settings(
     # 如果Stream配置有变化，重启Stream客户端
     try:
         from app.main import app
+        from app.services.dingtalk_stream_client import restart_user_stream_client
         asyncio.create_task(restart_user_stream_client(app, current_user.id, settings))
     except Exception as e:
         print(f"⚠️  重启Stream客户端失败: {e}")
