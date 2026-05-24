@@ -55,15 +55,11 @@ export default function TopBar({
   };
 
   return (
-    <header style={{
+    <header className="glass-topbar" style={{
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
       padding: '0 24px',
-      background: 'var(--color-surface)',
-      backdropFilter: 'var(--glass-blur)',
-      WebkitBackdropFilter: 'var(--glass-blur)',
-      borderBottom: '1px solid var(--color-border)',
       position: 'sticky',
       top: 0,
       zIndex: 9,

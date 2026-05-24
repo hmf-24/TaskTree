@@ -42,6 +42,7 @@ export const feedsAPI = {
   add: (data: { url: string; name: string }) => readhubApi.post('/feeds', data),
   delete: (id: number) => readhubApi.delete(`/feeds/${id}`),
   fetch: () => readhubApi.post('/feeds/fetch'),
+  authors: (id: number) => readhubApi.get(`/feeds/${id}/authors`),
 };
 
 // ──────────── 文章 API ────────────
@@ -50,6 +51,7 @@ export const articlesAPI = {
   list: (params?: {
     feed_id?: number;
     unread_only?: boolean;
+    author?: string;
     page?: number;
     page_size?: number;
   }) => readhubApi.get('/articles', { params }),
@@ -58,6 +60,7 @@ export const articlesAPI = {
   saveToObsidian: (id: number) => readhubApi.post(`/articles/${id}/save-to-obsidian`),
   convertToTask: (id: number, data: { project_id: number; title?: string }) =>
     readhubApi.post(`/articles/${id}/convert-to-task`, data),
+  generateAiSummary: (id: number) => readhubApi.post(`/articles/${id}/ai-summary`),
 };
 
 // ──────────── ReadHub 设置 API ────────────
@@ -69,8 +72,26 @@ export const readhubSettingsAPI = {
     obsidian_folder?: string;
     auto_fetch_enabled?: boolean;
     auto_fetch_interval?: number;
+    dingtalk_webhook?: string;
+    dingtalk_secret?: string;
+    dingtalk_client_id?: string;
+    dingtalk_client_secret?: string;
+    dingtalk_stream_enabled?: boolean;
   }) => readhubApi.put('/settings', data),
   obsidianStatus: () => readhubApi.get('/obsidian/status'),
+};
+
+// ──────────── WeWe-RSS 集成 API ────────────
+
+export const wewerssAPI = {
+  /** 检测 wewe-rss 实例连接状态 */
+  checkStatus: (serverUrl: string, authCode?: string) =>
+    readhubApi.get('/wewerss/status', {
+      params: { server_url: serverUrl, auth_code: authCode },
+    }),
+  /** 从 wewe-rss 同步所有订阅源 */
+  sync: (data: { server_url: string; auth_code?: string }) =>
+    readhubApi.post('/wewerss/sync', data),
 };
 
 export default readhubApi;

@@ -28,6 +28,7 @@ from app.services.slash_commands import (
 )
 from app.services.intent_prompts import (
     build_intent_system_prompt,
+    build_readhub_intent_system_prompt,
     build_intent_user_prompt,
     get_clarification_message,
 )
@@ -56,7 +57,8 @@ class IntentResolver:
         self,
         message: str,
         user_id: int,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
+        app_source: str = "tasktree"
     ) -> IntentResult:
         """
         统一意图解析入口
@@ -88,7 +90,7 @@ class IntentResolver:
         
         # ── Level 1: 斜杠命令 ────────────────────────────────
         if self.slash_router.is_slash_command(cleaned):
-            result = self.slash_router.parse(cleaned)
+            result = self.slash_router.parse(cleaned, app_source)
             if result:
                 print(f"🎯 [L1/SlashCommand] /{cleaned.split()[0][1:]} → {result.intent.value} (conf={result.confidence})")
                 return result
@@ -105,7 +107,7 @@ class IntentResolver:
             context = await self.context_builder.build(user_id)
         
         llm_result = await self._resolve_with_llm(
-            cleaned, user_id, context, hint=rule_result
+            cleaned, context, app_source, hint=rule_result
         )
         print(f"🎯 [L3/LLM] → {llm_result.intent.value} (conf={llm_result.confidence})")
         return llm_result
@@ -247,6 +249,29 @@ class IntentResolver:
                         source="rule_engine",
                     )
         
+        # ── ReadHub 配置 ──
+        rss_config_keywords = ["自动拉取", "自动抓取", "推送间隔", "拉取间隔", "rss"]
+        if any(kw in msg_lower for kw in rss_config_keywords):
+            params = {}
+            if any(kw in msg_lower for kw in ["开启", "打开", "启用", "on"]):
+                params["enabled"] = True
+            elif any(kw in msg_lower for kw in ["关闭", "停用", "off"]):
+                params["enabled"] = False
+            
+            # 提取时间间隔
+            interval_match = re.search(r'(\d+)\s*(分钟|min)', msg_lower)
+            if interval_match:
+                params["interval"] = int(interval_match.group(1))
+                
+            if params:
+                return IntentResult(
+                    intent=IntentType.CONFIG_RSS,
+                    confidence=0.90,
+                    params=params,
+                    raw_message=message,
+                    source="rule_engine",
+                )
+
         # ── 分析项目 ──
         analyze_keywords = ["分析", "分析一下", "项目分析", "项目进展"]
         if any(kw in msg_lower for kw in analyze_keywords):
@@ -320,13 +345,11 @@ class IntentResolver:
         
         return None
     
-    # ── Level 3: LLM 深度理解 ─────────────────────────────────
-
     async def _resolve_with_llm(
-        self,
-        message: str,
-        user_id: int,
-        context: Dict[str, Any],
+        self, 
+        message: str, 
+        context: Optional[Dict[str, Any]],
+        app_source: str,
         hint: Optional[IntentResult] = None
     ) -> IntentResult:
         """
@@ -338,12 +361,12 @@ class IntentResolver:
         3. 解析 JSON 响应
         4. 置信度评估 → 可能生成澄清消息
         """
-        # 构建 System Prompt
-        system_prompt = build_intent_system_prompt(
-            user_context=context,
-            include_examples=True,
-        )
-        
+        # 1. 构建 Prompt
+        if app_source == "readhub":
+            system_prompt = build_readhub_intent_system_prompt(context, include_examples=True)
+        else:
+            system_prompt = build_intent_system_prompt(context, include_examples=True)
+            
         # 构建用户 Prompt
         user_prompt = build_intent_user_prompt(message)
         
@@ -366,23 +389,17 @@ class IntentResolver:
             )
             
             # 解析 LLM 响应
-            result = self._parse_llm_response(response, message)
+            result = self._parse_llm_response(response, message, app_source)
             
             # 置信度策略: 低置信度生成澄清消息
             if result.confidence < 0.4:
                 result.clarification = get_clarification_message(
-                    "ambiguous_intent"
+                    "ambiguous_intent", app_source
                 )
-            elif result.confidence < 0.7 and not result.task_reference:
-                # 中置信度但没有任务引用
-                if result.intent in (
-                    IntentType.UPDATE_PROGRESS,
-                    IntentType.QUERY_TASK_DETAIL,
-                    IntentType.MODIFY_TASK,
-                ):
-                    result.clarification = get_clarification_message(
-                        "missing_task_name"
-                    )
+            elif result.confidence < 0.7:
+                if result.intent in (IntentType.UPDATE_PROGRESS, IntentType.QUERY_TASK_DETAIL, IntentType.MODIFY_TASK):
+                    if not result.task_reference or not result.task_reference.get("name"):
+                        result.clarification = get_clarification_message("missing_task_name", app_source)
             
             return result
             
@@ -399,11 +416,11 @@ class IntentResolver:
                 confidence=0.3,
                 raw_message=message,
                 source="fallback",
-                clarification=get_clarification_message("ambiguous_intent"),
+                clarification=get_clarification_message("ambiguous_intent", app_source),
             )
     
     def _parse_llm_response(
-        self, response: str, original_message: str
+        self, response: str, original_message: str, app_source: str = "tasktree"
     ) -> IntentResult:
         """
         解析 LLM 返回的 JSON 意图结果
@@ -435,7 +452,7 @@ class IntentResolver:
         for candidate in candidates:
             try:
                 data = json.loads(candidate)
-                return self._build_intent_from_dict(data, original_message)
+                return self._build_intent_from_dict(data, original_message, app_source)
             except json.JSONDecodeError:
                 pass
             
@@ -448,7 +465,7 @@ class IntentResolver:
                 # 移除 reasoning 等可能包含特殊字符的字段
                 fixed = re.sub(r',?\s*"reasoning"\s*:\s*"[^"]*"', '', fixed)
                 data = json.loads(fixed)
-                return self._build_intent_from_dict(data, original_message)
+                return self._build_intent_from_dict(data, original_message, app_source)
             except json.JSONDecodeError:
                 continue
         
@@ -461,11 +478,11 @@ class IntentResolver:
             confidence=0.3,
             raw_message=original_message,
             source="llm_parse_error",
-            clarification=get_clarification_message("ambiguous_intent"),
+            clarification=get_clarification_message("ambiguous_intent", app_source),
         )
     
     def _build_intent_from_dict(
-        self, data: dict, original_message: str
+        self, data: dict, original_message: str, app_source: str = "tasktree"
     ) -> IntentResult:
         """从解析好的 dict 构建 IntentResult"""
         # 解析意图类型

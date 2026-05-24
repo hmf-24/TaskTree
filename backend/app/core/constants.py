@@ -13,6 +13,7 @@ class TaskStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    BLOCKED = "blocked"
 
 
 class TaskPriority(str, Enum):
@@ -44,6 +45,7 @@ STATUS_LABELS = {
     TaskStatus.IN_PROGRESS: "进行中",
     TaskStatus.COMPLETED: "已完成",
     TaskStatus.CANCELLED: "已取消",
+    TaskStatus.BLOCKED: "已阻塞",
 }
 
 PRIORITY_LABELS = {
@@ -56,8 +58,9 @@ PRIORITY_LABELS = {
 # 定义每个状态允许转换到的目标状态列表。
 # 在 tasks.py 的 update_task 中应调用 validate_status_transition() 校验。
 VALID_STATUS_TRANSITIONS = {
-    TaskStatus.PENDING: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED],
+    TaskStatus.PENDING: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED, TaskStatus.BLOCKED],
     TaskStatus.IN_PROGRESS: [TaskStatus.COMPLETED, TaskStatus.PENDING, TaskStatus.CANCELLED],
     TaskStatus.COMPLETED: [TaskStatus.PENDING],
     TaskStatus.CANCELLED: [TaskStatus.PENDING],
+    TaskStatus.BLOCKED: [TaskStatus.PENDING, TaskStatus.CANCELLED],
 }

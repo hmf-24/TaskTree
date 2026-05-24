@@ -8,23 +8,20 @@ import {
   Divider,
   message,
   Tabs,
-  Switch,
-  InputNumber,
-  Alert,
-  Space,
-  Select,
-  Checkbox,
   Upload,
+  Switch,
+  Alert,
+  Select,
 } from 'antd';
 import {
   UserOutlined,
   LockOutlined,
   SaveOutlined,
-  BellOutlined,
+  UploadOutlined,
+  ApiOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   LoadingOutlined,
-  UploadOutlined,
 } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import { Helmet } from 'react-helmet-async';
@@ -74,24 +71,15 @@ export default function Settings() {
   const { user, setAuth, token } = useAuthStore();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
-  const [reminderForm] = Form.useForm();
+  const [aiForm] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [savingAi, setSavingAi] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
-  const [loadingReminder, setLoadingReminder] = useState(false);
-  const [triggering, setTriggering] = useState(false);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [statsData, setStatsData] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
   const [testingConn, setTestingConn] = useState(false);
   const [connResult, setConnResult] = useState<{ success: boolean; msg: string; detail?: any } | null>(null);
-  const [uploading, setUploading] = useState(false);
-  // 分析维度用独立 state，避免 setFieldsValue 嵌套路径问题
-  const [analysisConfig, setAnalysisConfig] = useState({
-    overdue: true, progress_stalled: true, dependency_unblocked: true, team_load: true, risk_prediction: true,
-  });
 
-  const watchedProvider = Form.useWatch('llm_provider', reminderForm);
-  const watchedEnabled = Form.useWatch('enabled', reminderForm);
-  const watchedStreamEnabled = Form.useWatch('dingtalk_stream_enabled', reminderForm);
+  const watchedProvider = Form.useWatch('llm_provider', aiForm);
 
   useEffect(() => {
     if (user) {
@@ -99,40 +87,24 @@ export default function Settings() {
     }
   }, [user, profileForm]);
 
-  // 加载设置时把 analysis_config 拆开为顶层字段
   useEffect(() => {
-    const loadReminderSettings = async () => {
+    const loadAISettings = async () => {
       try {
         const res = await reminderSettingsAPI.getSettings();
         if (res.code === 200 && res.data) {
-          const ac = res.data.analysis_config || {};
-          setAnalysisConfig({
-            overdue: ac.overdue ?? true,
-            progress_stalled: ac.progress_stalled ?? true,
-            dependency_unblocked: ac.dependency_unblocked ?? true,
-            team_load: ac.team_load ?? true,
-            risk_prediction: ac.risk_prediction ?? true,
-          });
-          reminderForm.setFieldsValue({
-            enabled: res.data.enabled,
-            dingtalk_webhook: res.data.dingtalk_webhook,
-            dingtalk_secret: res.data.dingtalk_secret,
-            dingtalk_client_id: res.data.dingtalk_client_id,
-            dingtalk_client_secret: res.data.dingtalk_client_secret,
-            dingtalk_stream_enabled: res.data.dingtalk_stream_enabled || false,
-            llm_provider: res.data.llm_provider === 'custom' ? 'custom' : 'minimax',
+          aiForm.setFieldsValue({
+            llm_provider: res.data.llm_provider || 'minimax',
             llm_api_key: res.data.llm_api_key,
             llm_model: res.data.llm_model,
             llm_group_id: res.data.llm_group_id,
-            daily_limit: res.data.daily_limit || 5,
           });
         }
       } catch (error) {
-        console.error('加载提醒设置失败:', error);
+        console.error('加载 AI 设置失败:', error);
       }
     };
-    loadReminderSettings();
-  }, [reminderForm]);
+    loadAISettings();
+  }, [aiForm]);
 
   const handleSaveProfile = async (values: any) => {
     setSaving(true);
@@ -164,53 +136,25 @@ export default function Settings() {
     finally { setChangingPassword(false); }
   };
 
-  const handleSaveReminder = async (values: any) => {
-    setLoadingReminder(true);
+  const handleSaveAI = async (values: any) => {
+    setSavingAi(true);
     try {
       const res = await reminderSettingsAPI.updateSettings({
-        enabled: values.enabled,
-        dingtalk_webhook: values.dingtalk_webhook,
-        dingtalk_secret: values.dingtalk_secret,
-        dingtalk_client_id: values.dingtalk_client_id,
-        dingtalk_client_secret: values.dingtalk_client_secret,
-        dingtalk_stream_enabled: values.dingtalk_stream_enabled || false,
         llm_provider: values.llm_provider,
         llm_api_key: values.llm_api_key,
         llm_model: values.llm_model,
         llm_group_id: values.llm_group_id,
-        daily_limit: values.daily_limit || 5,
-        analysis_config: analysisConfig,
       });
-      if (res.code === 200) { message.success('智能提醒设置已保存'); }
+      if (res.code === 200) { message.success('AI与通知设置已保存'); }
       else { message.error(res.message || '保存失败'); }
     } catch (error: any) { 
       message.error(error.detail || error.message || '保存失败');
-      console.error('保存智能提醒设置失败:', error);
     }
-    finally { setLoadingReminder(false); }
-  };
-
-  const handleTriggerReminder = async () => {
-    setTriggering(true);
-    try {
-      const res = await reminderSettingsAPI.trigger();
-      if (res.code === 200) { message.success('提醒已发送'); }
-      else { message.error(res.message || '发送失败'); }
-    } catch (error: any) { message.error(error.message || '发送失败'); }
-    finally { setTriggering(false); }
-  };
-
-  const handleLoadStats = async (days: number = 7) => {
-    setLoadingStats(true);
-    try {
-      const res = await reminderSettingsAPI.getStats(days);
-      if (res.code === 200) { setStatsData(res.data); }
-    } catch (error) { console.error('加载统计失败:', error); }
-    finally { setLoadingStats(false); }
+    finally { setSavingAi(false); }
   };
 
   const handleTestConnection = async () => {
-    const values = reminderForm.getFieldsValue();
+    const values = aiForm.getFieldsValue();
     if (!values.llm_api_key) { message.error('请先输入 API Key'); return; }
     if (!values.llm_model) { message.error('请先选择或输入模型名称'); return; }
     setTestingConn(true);
@@ -342,134 +286,62 @@ export default function Settings() {
       ),
     },
     {
-      key: 'reminder',
-      label: <span><BellOutlined /> 智能提醒</span>,
+      key: 'ai_config',
+      label: <span><ApiOutlined /> AI与通知</span>,
       children: (
         <Card bordered={false}>
-          <Alert message="智能提醒说明" description="开启智能提醒后，系统会定期使用大模型分析您的任务，并通过钉钉发送个性化提醒通知。" type="info" showIcon style={{ marginBottom: 24 }} />
-          <Form form={reminderForm} layout="vertical" onFinish={handleSaveReminder} style={{ maxWidth: 600 }}>
-            <Form.Item label="启用智能提醒" name="enabled" valuePropName="checked">
-              <Switch checkedChildren="已启用" unCheckedChildren="已禁用" />
+          <Alert message="全局 AI 与通知配置" description="这些配置将作为 TaskTree 智能分析、ReadHub 等工具统一使用的底层大模型与通知通道。" type="info" showIcon style={{ marginBottom: 24 }} />
+          <Form form={aiForm} layout="vertical" onFinish={handleSaveAI} style={{ maxWidth: 600 }}>
+            <Divider orientation="left">大模型配置</Divider>
+            <Form.Item label="大模型提供商" name="llm_provider" tooltip="选择要使用的大模型服务商">
+              <Select placeholder="选择提供商" onChange={() => { aiForm.setFieldsValue({ llm_model: undefined }); setConnResult(null); }}>
+                {Object.entries(LLM_PROVIDERS).map(([key, value]) => <Select.Option key={key} value={key}>{value.name}</Select.Option>)}
+              </Select>
+            </Form.Item>
+            <Form.Item label="模型选择" name="llm_model" tooltip="选择或输入模型名称">
+              {isCustomProvider
+                ? <Input placeholder="请输入模型名称，如 MiniMax-M2.7" />
+                : <Select placeholder="选择模型" allowClear>{currentProvider.models.map((m: any) => <Select.Option key={m.value} value={m.value}>{m.label}</Select.Option>)}</Select>}
+            </Form.Item>
+            <Form.Item label="API Key" name="llm_api_key" tooltip="从对应平台获取API Key"><Input.Password placeholder={currentProvider.apiKeyPlaceholder} /></Form.Item>
+            {(watchedProvider === 'minimax' || isCustomProvider) && (
+              <Form.Item label="Group ID（可选）" name="llm_group_id" tooltip="从Minimax开放平台获取Group ID"><Input placeholder="输入Group ID（可选）" /></Form.Item>
+            )}
+
+            {connResult && (
+              <Alert message={connResult.success ? '连接成功' : '连接失败'} description={connResult.success ? `${connResult.msg}\n响应示例：${connResult.detail?.sample_output || ''}` : connResult.msg} type={connResult.success ? 'success' : 'error'} showIcon icon={connResult.success ? <CheckCircleOutlined /> : <CloseCircleOutlined />} style={{ marginBottom: 16 }} />
+            )}
+            <Form.Item>
+              <Button onClick={handleTestConnection} loading={testingConn} icon={testingConn ? <LoadingOutlined /> : undefined}>{testingConn ? '测试中...' : '测试连通性'}</Button>
             </Form.Item>
 
-            {watchedEnabled && (
-              <>
-                <Divider orientation="left">钉钉配置</Divider>
-                <Alert 
-                  message="钉钉接入方式" 
-                  description={
-                    <div>
-                      <p><strong>Webhook模式：</strong>适用于有公网IP的服务器，钉钉主动推送消息到你的服务器</p>
-                      <p><strong>Stream模式：</strong>适用于本地开发环境（无需公网IP），通过WebSocket主动连接钉钉服务器</p>
-                    </div>
-                  } 
-                  type="info" 
-                  showIcon 
-                  style={{ marginBottom: 16 }} 
-                />
-                
-                <Form.Item label="启用Stream模式" name="dingtalk_stream_enabled" valuePropName="checked" tooltip="开启后使用Stream模式连接钉钉，无需公网IP">
-                  <Switch checkedChildren="Stream模式" unCheckedChildren="Webhook模式" />
-                </Form.Item>
-
-                {watchedStreamEnabled ? (
-                  <>
-                    <Form.Item label="钉钉 Client ID" name="dingtalk_client_id" tooltip="从钉钉开放平台获取AppKey" rules={[{ required: true, message: '请输入Client ID' }]}>
-                      <Input placeholder="输入钉钉AppKey" />
-                    </Form.Item>
-                    <Form.Item label="钉钉 Client Secret" name="dingtalk_client_secret" tooltip="从钉钉开放平台获取AppSecret" rules={[{ required: true, message: '请输入Client Secret' }]}>
-                      <Input.Password placeholder="输入钉钉AppSecret" />
-                    </Form.Item>
-                  </>
-                ) : (
-                  <>
-                    <Form.Item label="钉钉 Webhook 地址" name="dingtalk_webhook" tooltip="在钉钉群聊中添加机器人，获取Webhook地址并复制到这里">
-                      <Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" />
-                    </Form.Item>
-                    <Form.Item label="钉钉密钥（可选）" name="dingtalk_secret" tooltip="开启机器人安全设置后需要填写密钥">
-                      <Input.Password placeholder="SEC开头的密钥（可选）" />
-                    </Form.Item>
-                  </>
-                )}
-
-                <Divider orientation="left">大模型配置</Divider>
-                <Form.Item label="大模型提供商" name="llm_provider" tooltip="选择要使用的大模型服务商">
-                  <Select placeholder="选择提供商" onChange={() => { reminderForm.setFieldsValue({ llm_model: undefined }); setConnResult(null); }}>
-                    {Object.entries(LLM_PROVIDERS).map(([key, value]) => <Select.Option key={key} value={key}>{value.name}</Select.Option>)}
-                  </Select>
-                </Form.Item>
-                <Form.Item label="模型选择" name="llm_model" tooltip="选择或输入模型名称">
-                  {isCustomProvider
-                    ? <Input placeholder="请输入模型名称，如 MiniMax-M2.7" />
-                    : <Select placeholder="选择模型" allowClear>{currentProvider.models.map((m: any) => <Select.Option key={m.value} value={m.value}>{m.label}</Select.Option>)}</Select>}
-                </Form.Item>
-                <Form.Item label="API Key" name="llm_api_key" tooltip="从对应平台获取API Key"><Input.Password placeholder={currentProvider.apiKeyPlaceholder} /></Form.Item>
-                {(watchedProvider === 'minimax' || isCustomProvider) && (
-                  <Form.Item label="Group ID（可选）" name="llm_group_id" tooltip="从Minimax开放平台获取Group ID"><Input placeholder="输入Group ID（可选）" /></Form.Item>
-                )}
-
-                {connResult && (
-                  <Alert message={connResult.success ? '连接成功' : '连接失败'} description={connResult.success ? `${connResult.msg}\n响应示例：${connResult.detail?.sample_output || ''}` : connResult.msg} type={connResult.success ? 'success' : 'error'} showIcon icon={connResult.success ? <CheckCircleOutlined /> : <CloseCircleOutlined />} style={{ marginBottom: 16 }} />
-                )}
-                <Form.Item>
-                  <Button onClick={handleTestConnection} loading={testingConn} icon={testingConn ? <LoadingOutlined /> : undefined}>{testingConn ? '测试中...' : '测试连通性'}</Button>
-                </Form.Item>
-
-                <Divider orientation="left">分析维度配置</Divider>
-                <Form.Item tooltip="您可以选择启用一项或多项分析维度。">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <Checkbox checked={analysisConfig.overdue} onChange={e => setAnalysisConfig({...analysisConfig, overdue: e.target.checked})}>逾期检测</Checkbox>
-                    <Checkbox checked={analysisConfig.progress_stalled} onChange={e => setAnalysisConfig({...analysisConfig, progress_stalled: e.target.checked})}>进度落后检测</Checkbox>
-                    <Checkbox checked={analysisConfig.dependency_unblocked} onChange={e => setAnalysisConfig({...analysisConfig, dependency_unblocked: e.target.checked})}>依赖解除检测</Checkbox>
-                    <Checkbox checked={analysisConfig.team_load} onChange={e => setAnalysisConfig({...analysisConfig, team_load: e.target.checked})}>团队负荷分析</Checkbox>
-                    <Checkbox checked={analysisConfig.risk_prediction} onChange={e => setAnalysisConfig({...analysisConfig, risk_prediction: e.target.checked})}>风险预测</Checkbox>
-                  </div>
-                </Form.Item>
-
-                <Divider orientation="left">高级设置</Divider>
-                <Form.Item label="每日提醒上限" name="daily_limit" tooltip="每天最多发送的提醒次数"><InputNumber min={1} max={20} defaultValue={5} style={{ width: 120 }} /></Form.Item>
-              </>
-            )}
-
-            <Form.Item style={{ marginTop: 24 }}><Space>
-              <Button type="primary" htmlType="submit" loading={loadingReminder} icon={<SaveOutlined />}>保存设置</Button>
-              <Button onClick={handleTriggerReminder} loading={triggering}>立即提醒</Button>
-              <Button onClick={() => handleLoadStats(7)} loading={loadingStats}>查看统计</Button>
-            </Space></Form.Item>
-
-            {statsData && (
-              <Alert message={`统计报表 (近${statsData.period_days}天)`} description={<div><p>总发送: {statsData.total} 条</p><p>已读: {statsData.read_count} 条 ({statsData.read_rate}%)</p></div>} type="info" style={{ marginTop: 16 }} />
-            )}
+            <Form.Item style={{ marginTop: 24 }}>
+              <Button type="primary" htmlType="submit" loading={savingAi} icon={<SaveOutlined />}>保存全局 AI 与通知配置</Button>
+            </Form.Item>
           </Form>
-        </Card>
-      ),
-    },
-    {
-      key: 'about',
-      label: '关于',
-      children: (
-        <Card bordered={false}>
-          <div style={{ textAlign: 'center', padding: 24 }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#1890ff', marginBottom: 8 }}>TaskTree</div>
-            <div style={{ color: '#666', marginBottom: 16 }}>任务树 - 让项目管理更直观</div>
-            <Divider />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 300, margin: '0 auto', textAlign: 'left' }}>
-              <span style={{ color: '#999' }}>版本</span><span>1.0.0</span>
-              <span style={{ color: '#999' }}>技术栈</span><span>React + FastAPI</span>
-              <span style={{ color: '#999' }}>数据库</span><span>SQLite</span>
-              <span style={{ color: '#999' }}>UI 框架</span><span>Ant Design 5</span>
-            </div>
-          </div>
         </Card>
       ),
     },
   ];
 
   return (
-    <div className="p-6">
-      <Helmet><title>设置 - TaskTree</title></Helmet>
-      <h1 className="text-2xl font-bold mb-6">设置</h1>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}><Tabs items={tabItems} defaultActiveKey="profile" /></div>
+    <div className="page-container" style={{ maxWidth: 800, margin: '0 auto', padding: '32px 24px' }}>
+      <Helmet><title>Nexus 统一设置</title></Helmet>
+      <h2 style={{
+        fontSize: 22, fontWeight: 600, marginBottom: 24,
+        color: 'var(--color-ink)',
+        fontFamily: 'var(--font-heading)',
+        letterSpacing: '-0.02em',
+      }}>
+        Nexus 统一设置
+      </h2>
+      <Card bordered={false} style={{
+        background: 'var(--color-surface)',
+        borderRadius: 'var(--radius-card)',
+        border: '1px solid var(--color-border)',
+      }}>
+        <Tabs items={tabItems} defaultActiveKey="profile" />
+      </Card>
     </div>
   );
 }

@@ -160,6 +160,9 @@ export const reminderSettingsAPI = {
   updateSettings: (data: {
     dingtalk_webhook?: string;
     dingtalk_secret?: string;
+    dingtalk_client_id?: string;
+    dingtalk_client_secret?: string;
+    dingtalk_stream_enabled?: boolean;
     llm_provider?: string;
     llm_api_key?: string;
     llm_model?: string;
@@ -183,9 +186,9 @@ export const reminderSettingsAPI = {
 // LLM Tasks API
 export const llmTasksAPI = {
   clarify: (data: { project_id: number; messages: { role: string; content: string }[] }) =>
-    api.post('/llm_tasks/clarify', data, { timeout: 60000 }),
+    api.post('/llm_tasks/clarify', data, { timeout: 120000 }),
   decompose: (data: { project_id: number; requirement: string }) =>
-    api.post('/llm_tasks/decompose', data, { timeout: 60000 }),
+    api.post('/llm_tasks/decompose', data, { timeout: 120000 }),
 };
 
 // Conversations API
@@ -200,7 +203,7 @@ export const conversationsAPI = {
 
   // 发送消息
   sendMessage: (conversationId: number, data: { content: string }) =>
-    api.post(`/conversations/${conversationId}/messages`, data, { timeout: 60000 }),
+    api.post(`/conversations/${conversationId}/messages`, data, { timeout: 120000 }),
 
   // 获取对话列表
   list: (params?: { project_id?: number; conversation_type?: string }) =>
@@ -211,7 +214,7 @@ export const conversationsAPI = {
 
   // 任务分析
   analyze: (conversationId: number, data?: { focus_areas?: string[] }) =>
-    api.post(`/conversations/${conversationId}/analyze`, data, { timeout: 60000 }),
+    api.post(`/conversations/${conversationId}/analyze`, data, { timeout: 120000 }),
 
   // 任务修改
   modify: (conversationId: number, data: { modification: any }) =>
@@ -219,7 +222,7 @@ export const conversationsAPI = {
 
   // 项目规划
   plan: (conversationId: number, data?: { planning_goal?: string }) =>
-    api.post(`/conversations/${conversationId}/plan`, data, { timeout: 60000 }),
+    api.post(`/conversations/${conversationId}/plan`, data, { timeout: 120000 }),
 
   // 删除对话
   delete: (conversationId: number) => api.delete(`/conversations/${conversationId}`),

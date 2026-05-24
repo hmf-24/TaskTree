@@ -4,6 +4,12 @@ TaskTree 后端应用入口
 基于 FastAPI 的 RESTful API 服务。
 启动命令: uvicorn app.main:app --reload --port 8000
 """
+import sys
+import codecs
+if sys.platform == 'win32':
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -30,23 +36,50 @@ async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     await init_db()
     
+    # 启动定时任务调度器
+    from app.services.scheduler_service import SchedulerService
+    SchedulerService.start()
+    # 异步加载所有用户的后台拉取任务
+    import asyncio
+    asyncio.create_task(SchedulerService.reload_all_jobs())
+    
     # 启动钉钉Stream客户端
     try:
         from app.services.dingtalk_stream_client import start_dingtalk_stream_mode
         await start_dingtalk_stream_mode(app)
     except Exception as e:
-        print(f"⚠️  钉钉Stream客户端启动失败: {e}")
+        try:
+            print(f"[WARNING] 钉钉Stream客户端启动失败: {e}")
+        except Exception:
+            pass
     
     yield
+    
+    # 停止调度器
+    SchedulerService.stop()
     
     # 关闭时停止所有Stream客户端
     if hasattr(app.state, 'dingtalk_stream_clients'):
         try:
-            for user_id, client in app.state.dingtalk_stream_clients.items():
-                await client.stop()
-                print(f"✅ 用户 {user_id} 的Stream客户端已停止")
+            for user_id, clients in app.state.dingtalk_stream_clients.items():
+                if isinstance(clients, dict):
+                    for app_source, client in clients.items():
+                        await client.stop()
+                        try:
+                            print(f"[SUCCESS] 用户 {user_id} 的 [{app_source}] Stream客户端已停止")
+                        except Exception:
+                            pass
+                else:
+                    await clients.stop()
+                    try:
+                        print(f"[SUCCESS] 用户 {user_id} 的Stream客户端已停止")
+                    except Exception:
+                        pass
         except Exception as e:
-            print(f"⚠️  停止Stream客户端失败: {e}")
+            try:
+                print(f"[WARNING] 停止Stream客户端失败: {e}")
+            except Exception:
+                pass
 
 
 app = FastAPI(

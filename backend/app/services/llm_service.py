@@ -259,7 +259,7 @@ JSON：{{
                 url,
                 headers=headers,
                 json=payload,
-                timeout=60.0
+                timeout=120.0
             )
             if response.status_code != 200:
                 raise Exception(f"API error: {response.status_code} - {response.text}")
@@ -286,7 +286,7 @@ JSON：{{
                 url,
                 headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
                 json=payload,
-                timeout=60.0
+                timeout=120.0
             )
             if response.status_code != 200:
                 raise Exception(f"API error: {response.status_code} - {response.text}")
@@ -320,7 +320,7 @@ JSON：{{
                 url,
                 headers={"x-api-key": self.api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
                 json=payload,
-                timeout=60.0
+                timeout=120.0
             )
             if response.status_code != 200:
                 raise Exception(f"API error: {response.status_code} - {response.text}")
@@ -675,6 +675,180 @@ JSON：{{
             "extend_days": extend_days,
             "raw_message": message
         }
+
+    async def batch_summarize_articles(self, articles: list) -> list[str]:
+        """为一批文章生成简短摘要（30-60字）"""
+        if not articles:
+            return []
+            
+        import re
+        
+        # 拼接所有文章的内容，让 LLM 一次性概括
+        article_texts = []
+        for i, article in enumerate(articles):
+            # 优先使用 content_html（信息更全），其次 summary
+            raw = article.content_html or article.summary or ""
+            # 清理 HTML
+            clean = re.sub(r'<[^>]+>', '', raw).strip()
+            clean = re.sub(r'\s+', ' ', clean)
+            # 截取前 1500 字符避免 token 过长
+            if len(clean) > 1500:
+                clean = clean[:1500]
+            article_texts.append(f"[文章{i+1}] 标题: {article.title}\n内容: {clean}")
+        
+        batch_content = "\n\n".join(article_texts)
+        
+        prompt = (
+            f"以下是 {len(articles)} 篇微信公众号或订阅文章的内容。"
+            f"请为每篇文章各生成一句话（30-60字以内）的中文极简摘要，必须概括其核心要点。\n"
+            f"要求：\n"
+            f"- 每行一篇，格式严格为 `[文章N] 摘要内容`\n"
+            f"- 摘要要有信息量，让读者不看原文也能知道讲了什么\n"
+            f"- 不要重复标题，要提炼出最关键的增量信息\n\n"
+            f"{batch_content}"
+        )
+        
+        fallback = []
+        for article in articles:
+            raw = getattr(article, "content_html", "") or getattr(article, "summary", "") or ""
+            clean = re.sub(r'<[^>]+>', '', raw).strip()
+            clean = re.sub(r'\s+', ' ', clean)
+            if clean:
+                truncated = clean[:80] + "..." if len(clean) > 80 else clean
+                fallback.append(truncated)
+            else:
+                fallback.append("")
+        
+        if not self.api_key:
+            return fallback
+            
+        try:
+            response = await self.chat(
+                messages=[
+                    {"role": "system", "content": "你是一个专业的新闻编辑助手，擅长用极短的话概括长篇文章的核心内容。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2000,
+            )
+            
+            # 解析 LLM 返回的摘要
+            summaries = []
+            response_lines = response.strip().split("\n")
+            for article_idx in range(len(articles)):
+                found = False
+                for line in response_lines:
+                    if f"[文章{article_idx + 1}]" in line:
+                        # 提取 [文章N] 后面的内容
+                        summary = re.sub(rf'\[文章{article_idx + 1}\]\s*', '', line).strip()
+                        summaries.append(summary)
+                        found = True
+                        break
+                if not found:
+                    summaries.append(fallback[article_idx])
+            
+            return summaries
+            
+        except Exception as e:
+            print(f"⚠️ LLM 生成摘要失败: {e}")
+            return fallback
+
+    async def batch_analyze_articles(self, articles: list, interest_tags: list = None) -> list[dict]:
+        """为一批文章生成摘要，并根据关注标签进行重要度分级和打标签。
+        Returns a list of dicts: {"summary": str, "importance": "high|medium|low|unrelated", "tags": [str]}
+        """
+        if not articles:
+            return []
+            
+        import re
+        import json
+        
+        tags_str = ", ".join(interest_tags) if interest_tags else "无（请自行推断前沿科技标签）"
+        
+        article_texts = []
+        for i, article in enumerate(articles):
+            raw = getattr(article, "content_html", "") or getattr(article, "summary", "") or ""
+            clean = re.sub(r'<[^>]+>', '', raw).strip()
+            clean = re.sub(r'\s+', ' ', clean)
+            if len(clean) > 1500:
+                clean = clean[:1500]
+            article_texts.append(f"[文章{i+1}] 标题: {article.title}\n内容: {clean}")
+        
+        batch_content = "\n\n".join(article_texts)
+        
+        prompt = (
+            f"以下是 {len(articles)} 篇订阅文章的内容。\n"
+            f"用户的核心关注领域是：信息技术（包括大模型、AI、软硬件技术、云计算等前沿科技）以及信息行业的重要国家政策。\n"
+            f"用户的具体关注标签为：[{tags_str}]\n\n"
+            f"请严格按以下要求对每篇文章进行处理：\n"
+            f"【评定规则】\n"
+            f"- importance（重要度）分级标准：\n"
+            f"  * high: 必须与信息技术前沿或信息行业政策直接且强烈相关（如AI突破、重磅产品发布、重要国家政策）。\n"
+            f"  * medium: 信息技术领域的普通资讯、教程、工具推荐，或具有一定科技含量的泛商业新闻。\n"
+            f"  * low: 仅在边缘提及科技，或者是价值不高的普通社会新闻、财报罗列等。\n"
+            f"  * unrelated: 【严格要求】只要与“信息技术/信息行业政策”无关，必须判定为unrelated！例如：消费者权益提示、盲盒打假、娱乐八卦、育儿生活、与IT无关的传统行业新闻等。\n"
+            f"- tags 提取：只能提取与文章高度相关的标签（最好从用户关注领域中选，也可自定义极少数核心词），最多3个。\n"
+            f"- summary 撰写：\n"
+            f"  * 必须是一段连贯的文字（40-100字），提取出最核心的增量信息和要点。\n"
+            f"  * 特别注意：如果原文本身是聚合类的早报/晚报（例如“AI早报”、“科技要闻”），请不要机械罗列，而是从中挑选出最重要、最具影响力的 1-3 条新闻进行高度精炼的播报。\n\n"
+            f"请严格返回一个 JSON 数组（不要Markdown代码块，直接返回可解析的纯JSON文本），长度必须正好是 {len(articles)}，顺序对应：\n"
+            f"[\n"
+            f"  {{\"summary\": \"...\", \"importance\": \"high\", \"tags\": [\"标签1\"]}},\n"
+            f"  ... \n"
+            f"]\n\n"
+            f"{batch_content}"
+        )
+        
+        fallback = []
+        for article in articles:
+            raw = getattr(article, "content_html", "") or getattr(article, "summary", "") or ""
+            clean = re.sub(r'<[^>]+>', '', raw).strip()
+            clean = re.sub(r'\s+', ' ', clean)
+            truncated = clean[:80] + "..." if len(clean) > 80 else (clean or "暂无内容")
+            fallback.append({"summary": truncated, "importance": "medium", "tags": []})
+            
+        if not self.api_key:
+            return fallback
+            
+        try:
+            response = await self.chat(
+                messages=[
+                    {"role": "system", "content": "你是一个严谨的AI内容分析引擎，仅输出符合要求的纯JSON数组，绝对不输出任何其他多余文本（例如解释、思考过程等）。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.1,
+                max_tokens=2500,
+            )
+            
+            # 尝试解析 JSON
+            text = response.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+            
+            try:
+                results = json.loads(text)
+                if isinstance(results, list) and len(results) == len(articles):
+                    return results
+                else:
+                    print(f"⚠️ JSON 格式正确但长度不匹配 (预期 {len(articles)}, 实际 {len(results) if isinstance(results, list) else 0})")
+            except json.JSONDecodeError:
+                print(f"⚠️ JSON 解析失败，原始返回：\n{text[:200]}...")
+            
+            # 如果解析失败，尝试正则表达式 fallback
+            results = []
+            for i in range(len(articles)):
+                # 这里做简单 fallback 处理
+                results.append(fallback[i])
+            return results
+            
+        except Exception as e:
+            print(f"⚠️ LLM batch_analyze_articles 失败: {e}")
+            return fallback
 
 
 llm_service = LLMService()

@@ -51,7 +51,7 @@ export default function Launcher() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-canvas)' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent' }}>
       <Helmet><title>工作台 - Nexus</title></Helmet>
 
       <TopBar />
@@ -64,20 +64,21 @@ export default function Launcher() {
         {/* 欢迎语 */}
         <div style={{ marginBottom: 48, textAlign: 'center' }}>
           <h1 style={{
-            fontSize: 32,
-            fontWeight: 700,
+            fontSize: 48,
+            fontWeight: 500,
             color: 'var(--color-ink)',
-            letterSpacing: '-0.03em',
-            margin: '0 0 8px',
+            letterSpacing: '-0.04em',
+            margin: '0 0 12px',
             fontFamily: 'var(--font-sans)',
           }}>
-            Nexus
+            Projects built with <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 400 }}>Nexus.</span>
           </h1>
           <p style={{
-            fontSize: 15,
+            fontSize: 16,
             color: 'var(--color-ink-secondary)',
             margin: 0,
             letterSpacing: '0.01em',
+            fontFamily: 'var(--font-sans)',
           }}>
             选择一个工具开始工作
           </p>
@@ -95,7 +96,6 @@ export default function Launcher() {
               className={`launcher-card ${!app.available ? 'launcher-card--disabled' : ''}`}
               onClick={() => app.available && navigate(app.path)}
               style={{
-                background: app.gradient,
                 cursor: app.available ? 'pointer' : 'not-allowed',
                 opacity: app.available ? 1 : 0.5,
               }}

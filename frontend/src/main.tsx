@@ -17,32 +17,33 @@ dayjs.locale('zh-cn');
  * 暖灰色系 + 低饱和度点缀色 + 扁平化组件
  */
 const antdTheme = {
-  algorithm: theme.darkAlgorithm,
+  algorithm: theme.defaultAlgorithm,
   token: {
-    // 品牌色 — 暗色环境下的高亮白
-    colorPrimary: '#FFFFFF',
-    colorPrimaryHover: 'rgba(255,255,255,0.8)',
-    colorPrimaryActive: 'rgba(255,255,255,0.6)',
+    // 品牌色 — 亮色环境下的深黑强调
+    colorPrimary: '#000000',
+    colorPrimaryHover: '#333333',
+    colorPrimaryActive: '#555555',
 
     // 功能色（低饱和度）
-    colorSuccess: '#346538',
-    colorWarning: '#956400',
+    colorSuccess: '#2F5A28',
+    colorWarning: '#A67B1E',
     colorError: '#9F2F2D',
     colorInfo: '#1F6C9F',
 
-    // 中性色（适配暗黑与毛玻璃）
-    colorText: '#FFFFFF',
-    colorTextSecondary: 'rgba(255, 255, 255, 0.7)',
-    colorTextTertiary: 'rgba(255, 255, 255, 0.4)',
-    colorTextQuaternary: 'rgba(255, 255, 255, 0.2)',
+    // 中性色（Taste Skill Light Organic）
+    colorText: '#111111',
+    colorTextHeading: '#000000',
+    colorTextSecondary: '#666666',
+    colorTextTertiary: '#999999',
+    colorTextQuaternary: '#CCCCCC',
     colorBgContainer: 'transparent',
     colorBgLayout: 'transparent',
-    colorBgElevated: 'rgba(20, 20, 20, 0.6)',
-    colorBorder: 'rgba(255, 255, 255, 0.1)',
-    colorBorderSecondary: 'rgba(255, 255, 255, 0.05)',
+    colorBgElevated: '#FFFFFF',
+    colorBorder: 'rgba(0, 0, 0, 0.08)',
+    colorBorderSecondary: 'rgba(0, 0, 0, 0.04)',
 
     // 字体
-    fontFamily: "'Outfit', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif",
+    fontFamily: "var(--font-sans)",
     fontSize: 14,
     fontSizeHeading1: 28,
     fontSizeHeading2: 22,
@@ -89,11 +90,33 @@ const antdTheme = {
       primaryShadow: 'none',
       defaultShadow: 'none',
       dangerShadow: 'none',
-      defaultBg: 'rgba(255, 255, 255, 0.05)',
-      defaultBorderColor: 'rgba(255, 255, 255, 0.1)',
+      colorPrimary: '#000000',
+      colorPrimaryHover: '#333333',
+      colorPrimaryActive: '#555555',
+      primaryColor: '#FFFFFF',
+      defaultBg: '#FFFFFF',
+      defaultBorderColor: 'rgba(0, 0, 0, 0.1)',
+      defaultHoverBg: '#F9F9F9',
+      defaultHoverBorderColor: 'rgba(0, 0, 0, 0.2)',
+      defaultHoverColor: '#000000',
+      defaultColor: '#111111',
+    },
+    Input: {
+      colorBgContainer: 'rgba(255, 255, 255, 0.8)',
+      colorBorder: 'rgba(0, 0, 0, 0.1)',
+      hoverBorderColor: 'rgba(0, 0, 0, 0.2)',
+      activeBorderColor: 'rgba(0, 0, 0, 0.3)',
+      activeShadow: '0 0 0 2px rgba(0, 0, 0, 0.05)',
+    },
+    Select: {
+      colorBgContainer: 'rgba(255, 255, 255, 0.8)',
+      colorBorder: 'rgba(0, 0, 0, 0.1)',
+      hoverBorderColor: 'rgba(0, 0, 0, 0.2)',
+      activeBorderColor: 'rgba(0, 0, 0, 0.3)',
+      activeShadow: '0 0 0 2px rgba(0, 0, 0, 0.05)',
     },
     Card: {
-      paddingLG: 20,
+      paddingLG: 24,
       colorBgContainer: 'transparent',
     },
     Menu: {
@@ -102,29 +125,40 @@ const antdTheme = {
       itemPaddingInline: 12,
       itemBg: 'transparent',
       subMenuItemBg: 'transparent',
+      itemHoverBg: 'rgba(0, 0, 0, 0.04)',
+      itemSelectedBg: 'rgba(0, 0, 0, 0.08)',
+      itemSelectedColor: '#000000',
     },
     Modal: {
       borderRadiusLG: 12,
-      contentBg: 'transparent',
-      headerBg: 'transparent',
+      contentBg: '#FFFFFF',
+      headerBg: '#FFFFFF',
     },
     Drawer: {
-      colorBgElevated: 'transparent',
+      colorBgElevated: '#FFFFFF',
     },
     Table: {
-      headerBg: 'rgba(255, 255, 255, 0.05)',
-      headerColor: 'rgba(255, 255, 255, 0.7)',
+      headerBg: 'rgba(0, 0, 0, 0.03)',
+      headerColor: 'rgba(0, 0, 0, 0.65)',
       colorBgContainer: 'transparent',
     },
+    Typography: {
+      titleMarginBottom: '0.8em',
+      titleMarginTop: '1.2em',
+      fontFamilyCode: 'var(--font-mono)',
+    },
     Segmented: {
-      itemSelectedBg: 'rgba(255, 255, 255, 0.1)',
-      trackBg: 'rgba(255, 255, 255, 0.05)',
+      itemSelectedBg: '#FFFFFF',
+      trackBg: 'rgba(0, 0, 0, 0.04)',
     },
     Tabs: {
-      inkBarColor: '#FFFFFF',
-      itemActiveColor: '#FFFFFF',
-      itemSelectedColor: '#FFFFFF',
-      itemHoverColor: 'rgba(255, 255, 255, 0.8)',
+      inkBarColor: '#000000',
+      itemActiveColor: '#000000',
+      itemSelectedColor: '#000000',
+      itemHoverColor: '#333333',
+    },
+    Switch: {
+      handleBg: '#1F6C9F',
     },
   },
 };

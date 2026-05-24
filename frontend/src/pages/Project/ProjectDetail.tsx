@@ -39,6 +39,7 @@ import {
   PlusSquareOutlined,
   MinusSquareOutlined,
   RobotOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import {
   DndContext,
@@ -78,6 +79,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   in_progress: <PlayCircleOutlined style={{ color: '#1F6C9F' }} />,
   completed: <CheckCircleOutlined style={{ color: '#346538' }} />,
   cancelled: <StopOutlined style={{ color: 'var(--color-ink-tertiary)' }} />,
+  blocked: <ExclamationCircleOutlined className="status-blocked-pulse" style={{ color: '#C27A2A' }} />,
 };
 
 // 状态流转顺序
@@ -86,6 +88,7 @@ const STATUS_FLOW: Record<string, string> = {
   in_progress: 'completed',
   completed: 'pending',
   cancelled: 'pending',
+  blocked: 'pending',
 };
 
 // 扁平化任务树获取所有任务ID

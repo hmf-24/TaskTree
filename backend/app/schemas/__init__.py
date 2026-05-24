@@ -137,6 +137,8 @@ class TaskBase(BaseModel):
     start_date: Optional[date] = None
     due_date: Optional[date] = None
     estimated_time: Optional[int] = None
+    task_type: Optional[str] = "manual"
+    metadata: Optional[dict] = None
 
     @field_validator('start_date', 'due_date', mode='before')
     @classmethod
@@ -156,6 +158,17 @@ class TaskBase(BaseModel):
             return 'medium'
         return str(v).lower()
 
+    @field_validator('task_type', mode='before')
+    @classmethod
+    def normalize_task_type(cls, v):
+        if v is None:
+            return 'manual'
+        valid = ('manual', 'automated', 'review')
+        val = str(v).lower()
+        if val not in valid:
+            raise ValueError(f'无效的任务类型: {v}。允许的值: {valid}')
+        return val
+
 
 class TaskCreate(TaskBase):
     pass
@@ -172,6 +185,8 @@ class TaskUpdate(BaseModel):
     due_date: Optional[date] = None
     estimated_time: Optional[int] = Field(default=None, ge=0)
     actual_time: Optional[int] = Field(default=None, ge=0)
+    task_type: Optional[str] = None
+    metadata: Optional[dict] = None
 
     @field_validator('status', mode='before')
     @classmethod
@@ -212,6 +227,8 @@ class TaskResponse(TaskBase):
     progress: int
     actual_time: Optional[int]
     sort_order: int
+    task_type: Optional[str] = "manual"
+    metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
 
@@ -239,6 +256,7 @@ class BatchTaskCreate(BaseModel):
 
 class DependencyCreate(BaseModel):
     dependent_task_id: int
+    dependency_type: str = "finish_to_start"
 
 
 class DependencyResponse(BaseModel):

@@ -42,9 +42,10 @@ class ActionExecutor:
     intent → handler → result → formatted message
     """
     
-    def __init__(self, db: AsyncSession, llm_service: LLMService):
+    def __init__(self, db: AsyncSession, llm_service: LLMService, app_source: str = "tasktree"):
         self.db = db
         self.llm_service = llm_service
+        self.app_source = app_source
         self.task_matcher = TaskMatcherService(db)
         self.message_printer = MessagePrinterService()
         
@@ -58,10 +59,10 @@ class ActionExecutor:
             IntentType.ANALYZE_PROJECT: self._handle_analyze_project,
             IntentType.PLAN_PROJECT: self._handle_plan_project,
             IntentType.GENERAL_CHAT: self._handle_general_chat,
-            # ---- ReadHub 扩展 ----
             IntentType.READ_BRIEFING: self._handle_read_briefing,
             IntentType.SAVE_TO_OBSIDIAN: self._handle_save_to_obsidian,
             IntentType.CONVERT_TO_TASK: self._handle_convert_to_task,
+            IntentType.CONFIG_RSS: self._handle_config_rss,
         }
     
     async def execute(
@@ -624,6 +625,20 @@ class ActionExecutor:
             )
         
         # 默认: 友好的引导消息
+        if self.app_source == "readhub":
+            return ActionResult(
+                success=True,
+                message=(
+                    "👋 你好！我是 ReadHub 微信订阅助手。\n\n"
+                    "你可以试试:\n"
+                    "- 发送 `/read` 拉取最新文章\n"
+                    "- 发送 `/save <文章ID>` 收藏至黑曜石\n"
+                    "- 发送 `/convert <文章ID>` 转为任务\n"
+                    "- 或者直接发给我一篇文章链接"
+                ),
+                msg_type="text",
+            )
+            
         return ActionResult(
             success=True,
             message=(
@@ -691,38 +706,103 @@ class ActionExecutor:
     async def _handle_read_briefing(
         self, intent: IntentResult, user_id: int
     ) -> ActionResult:
-        """处理 /read — 获取未读文章摘要"""
+        """处理 /read — 获取未读文章摘要，使用 LLM 生成智能概览"""
         try:
+            import re
             from app.apps.readhub.service import RssService
             
-            limit = intent.params.get("limit", 10)
+            # 获取全量未读（最大100，防止太多炸掉钉钉限制）
             result = await RssService.get_articles(
-                self.db, user_id, unread_only=True, page_size=limit
+                self.db, user_id, unread_only=True, page_size=100
             )
-            articles = result["items"]
+            all_articles = result["items"]
             total = result["total"]
             
-            if not articles:
+            if not all_articles:
                 return ActionResult(
                     success=True,
                     message="📰 **ReadHub 日报**\n\n🎉 没有未读文章，您已全部阅读！",
                     title="ReadHub",
                 )
             
-            lines = [f"📰 **ReadHub 日报** （共 {total} 篇未读）\n"]
-            for i, article in enumerate(articles, 1):
+            # 分类与过滤
+            import json
+            high_articles = []
+            medium_articles = []
+            low_articles = []
+            
+            for article in all_articles:
+                imp = getattr(article, "importance", "medium")
+                if imp == "unrelated":
+                    continue
+                elif imp == "high":
+                    high_articles.append(article)
+                elif imp == "low":
+                    low_articles.append(article)
+                else:
+                    medium_articles.append(article)
+            
+            # 组合要展示的文章，优先级：high > medium > low
+            display_articles = high_articles + medium_articles + low_articles
+            
+            if not display_articles:
+                return ActionResult(
+                    success=True,
+                    message="📰 **ReadHub 日报**\n\n🎉 暂无未读优质内容！所有内容已被过滤或已读完。",
+                    title="ReadHub",
+                )
+            
+            overview_text = ""
+            if high_articles:
+                # 只用 top 5 高优先级的文章生成概览
+                top_high = high_articles[:5]
+                overview_prompt = "请根据以下几篇今日核心资讯，用一段话（约80字以内）总结今日的【核心前沿动态概览】：\n"
+                for i, a in enumerate(top_high):
+                    overview_prompt += f"{i+1}. {a.title} - {a.summary}\n"
+                
+                try:
+                    overview_response = await self.llm_service.chat(
+                        messages=[
+                            {"role": "system", "content": "你是一个前沿科技媒体主编，负责写日报导语。"},
+                            {"role": "user", "content": overview_prompt},
+                        ],
+                        temperature=0.3,
+                        max_tokens=200,
+                    )
+                    overview_text = f"**🌟 今日核心概览**\n\n> {overview_response.strip()}\n\n---\n"
+                except Exception as e:
+                    print(f"生成概览失败: {e}")
+            
+            lines = [f"📰 **ReadHub 日报** （本次精选推送 {len(display_articles)} 篇）\n\n{overview_text}"]
+            
+            for i, article in enumerate(display_articles, 1):
                 title = article.title
-                author = f" · {article.author}" if article.author else ""
-                pub = ""
-                if article.published_at:
-                    pub = f" · {article.published_at.strftime('%m-%d')}"
-                lines.append(f"{i}. **{title}**{author}{pub}  \n   ID: `#{article.id}` | [原文]({article.source_url})")
+                author = f" [{article.author}]" if article.author else ""
+                
+                # 标签展示
+                tag_str = ""
+                if getattr(article, "tags", None):
+                    try:
+                        tags_list = json.loads(article.tags)
+                        if tags_list:
+                            tag_str = " " + " ".join([f"#{t}" for t in tags_list])
+                    except:
+                        pass
+                
+                imp_icon = "🔥" if getattr(article, "importance", "") == "high" else ("🔹" if getattr(article, "importance", "") == "low" else "✨")
+                
+                summary_text = ""
+                if article.summary:
+                    summary_text = f"\n> {article.summary}\n"
+                        
+                lines.append(f"**{i}. {imp_icon} {title}**\n{author}{tag_str}{summary_text}\n💡 ID: `#{article.id}` | [🔗 阅读原文]({article.source_url})\n")
             
-            if total > limit:
-                lines.append(f"\n> 还有 {total - limit} 篇未读，使用 `/read {limit + 10}` 查看更多")
+            lines.append("---\n💡 提示：以上推文已自动标记为已读。使用 `/save <ID>` 可存入 Obsidian，使用 `/convert <ID>` 转为任务。")
             
-            lines.append("\n---")
-            lines.append("💡 使用 `/save <ID>` 保存到 Obsidian | `/convert <ID>` 转为任务")
+            # 将这些推文标记为已读，避免下次重复推送
+            for article in all_articles:
+                article.is_read = True
+            await self.db.commit()
             
             return ActionResult(
                 success=True,
@@ -744,6 +824,7 @@ class ActionExecutor:
             from app.apps.readhub.obsidian_service import ObsidianService
             
             article_id = intent.params.get("article_id")
+            print(f"📥 [SaveToObsidian] article_id={article_id}, params={intent.params}")
             if not article_id:
                 return ActionResult(
                     success=False,
@@ -754,18 +835,23 @@ class ActionExecutor:
             result = await ObsidianService.save_article_to_vault(
                 self.db, article_id, user_id
             )
+            print(f"✅ [SaveToObsidian] 保存成功: {result}")
             return ActionResult(
                 success=True,
                 message=f"✅ 文章已保存到 Obsidian\n📁 路径：`{result['file_path']}`",
                 title="ReadHub",
             )
         except ValueError as e:
+            print(f"❌ [SaveToObsidian] ValueError: {e}")
             return ActionResult(
                 success=False,
                 message=f"❌ {e}",
                 title="ReadHub",
             )
         except Exception as e:
+            print(f"❌ [SaveToObsidian] Exception: {e}")
+            import traceback
+            traceback.print_exc()
             return ActionResult(
                 success=False,
                 message=f"❌ 保存失败：{e}",
@@ -851,17 +937,71 @@ class ActionExecutor:
             
             return ActionResult(
                 success=True,
-                message=(
-                    f"✅ 已创建任务\n\n"
-                    f"**{task_title}**\n"
-                    f"📁 项目：{project.name}\n"
-                    f"🔗 任务 ID：#{task.id}"
-                ),
+                message=f"✅ 文章《{article.title}》已成功转为任务并归入项目【{project.name}】！",
                 title="ReadHub",
             )
         except Exception as e:
             return ActionResult(
                 success=False,
-                message=f"❌ 转化任务失败：{e}",
+                message=f"❌ 转换失败：{e}",
                 title="ReadHub",
             )
+
+    async def _handle_config_rss(
+        self, intent: IntentResult, user_id: int
+    ) -> ActionResult:
+        """处理 /rss — 动态配置后台 RSS 自动拉取"""
+        try:
+            from app.apps.readhub.obsidian_service import ObsidianService
+            from app.services.scheduler_service import SchedulerService
+            import asyncio
+            
+            params = intent.params
+            if not params:
+                return ActionResult(
+                    success=False,
+                    message="未识别到有效的配置参数。请使用如 `/rss on 30` 或 `关闭自动拉取`。",
+                    title="ReadHub 配置",
+                )
+            
+            # 读取当前配置并更新
+            settings = await ObsidianService.get_settings(self.db, user_id)
+            
+            update_kwargs = {}
+            if "enabled" in params:
+                update_kwargs["auto_fetch_enabled"] = params["enabled"]
+            if "interval" in params:
+                update_kwargs["auto_fetch_interval"] = params["interval"]
+                
+            # 执行更新
+            updated_settings = await ObsidianService.update_settings(
+                self.db, user_id, **update_kwargs
+            )
+            
+            # 异步重载调度器
+            asyncio.create_task(SchedulerService.reload_user_rss_job(user_id))
+            
+            status_text = "开启" if updated_settings.auto_fetch_enabled else "关闭"
+            interval_text = f"{updated_settings.auto_fetch_interval} 分钟"
+            
+            msg = (
+                f"✅ **ReadHub 自动拉取配置已更新**\n\n"
+                f"**当前状态**: {status_text}\n"
+                f"**拉取间隔**: {interval_text}\n\n"
+                f"*后台定时器已实时重载生效。*"
+            )
+            
+            return ActionResult(
+                success=True,
+                message=msg,
+                msg_type="markdown",
+                title="ReadHub 配置",
+            )
+            
+        except Exception as e:
+            return ActionResult(
+                success=False,
+                message=f"❌ 配置更新失败: {e}",
+                title="ReadHub 配置",
+            )
+

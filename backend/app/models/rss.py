@@ -42,6 +42,11 @@ class RssArticle(Base):
     published_at = Column(DateTime, comment="发布时间")
     is_read = Column(Boolean, default=False, index=True, comment="是否已读")
     is_saved_to_obsidian = Column(Boolean, default=False, comment="是否已保存到 Obsidian")
+    
+    # ---- 智能分级与标签 ----
+    importance = Column(String(50), default="medium", comment="重要度 (high/medium/low/unrelated)")
+    tags = Column(Text, nullable=True, comment="文章命中的关注标签 (JSON数组)")
+    
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # 关联关系
@@ -58,6 +63,21 @@ class ReadHubSettings(Base):
     obsidian_folder = Column(String(255), default="ReadHub", comment="Vault 内保存子目录名")
     auto_fetch_enabled = Column(Boolean, default=False, comment="是否启用自动定时拉取")
     auto_fetch_interval = Column(Integer, default=60, comment="自动拉取间隔（分钟）")
+    
+    # ---- 独立钉钉机器人配置 (ReadHub 专属) ----
+    dingtalk_webhook = Column(String(500), nullable=True)  # 钉钉 Webhook 地址 (可选)
+    dingtalk_secret = Column(String(100), nullable=True)   # 钉钉 Webhook 加签密钥 (可选)
+    dingtalk_client_id = Column(String(100), nullable=True) # 钉钉 AppKey (Stream模式)
+    dingtalk_client_secret_encrypted = Column(Text, nullable=True) # 钉钉 AppSecret (加密)
+    dingtalk_stream_enabled = Column(Boolean, default=False) # 是否启用 Stream 模式
+
+    # ---- WeWe-RSS 配置 ----
+    wewe_server_url = Column(String(500), nullable=True, comment="WeWe-RSS 服务地址")
+    wewe_auth_code = Column(String(100), nullable=True, comment="WeWe-RSS 授权码")
+    
+    # ---- 智能分级过滤配置 ----
+    interest_tags = Column(Text, nullable=True, default='["AI", "前沿技术", "数据中心", "算力", "GPU"]', comment="用户关注的领域标签 (JSON数组)")
+    
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

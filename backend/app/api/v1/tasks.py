@@ -1,14 +1,17 @@
 """
 TaskTree 任务路由
 ================
-提供任务 CRUD、拖拽移动、批量创建、依赖关系、标签、评论等全部任务相关端点。
+提供任务 CRUD、拖拽移动、批量创建、依赖关系（DAG）、标签、评论等全部任务相关端点。
 状态流转会进行合法性校验（基于 VALID_STATUS_TRANSITIONS）。
+依赖感知：启动任务前检查前置依赖；完成任务时级联解锁后续任务。
 关键操作会自动创建通知记录。
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
+from collections import deque
+import json
 from app.core.database import get_db
 from app.core.constants import VALID_STATUS_TRANSITIONS, TaskStatus
 from app.models import (
@@ -104,6 +107,90 @@ def validate_status_transition(current_status: str, new_status: str):
         )
 
 
+async def check_dependencies_before_start(db: AsyncSession, task_id: int) -> list[dict]:
+    """检查任务的前置依赖是否全部完成。
+    返回未完成的阻塞任务列表；空列表表示可以启动。
+    """
+    result = await db.execute(
+        select(Task).join(
+            TaskDependency,
+            TaskDependency.task_id == Task.id
+        ).where(TaskDependency.dependent_task_id == task_id)
+    )
+    blocking_tasks = result.scalars().all()
+    return [
+        {"task_id": t.id, "name": t.name, "status": t.status}
+        for t in blocking_tasks if t.status != "completed"
+    ]
+
+
+async def cascade_unlock_dependents(db: AsyncSession, completed_task_id: int):
+    """当一个任务完成时，检查并自动解锁所有以它为前置的后续任务。
+    只解锁那些所有前置任务都已完成、且当前状态为 blocked 的任务。
+    """
+    # 找到所有依赖 completed_task_id 的后续任务
+    result = await db.execute(
+        select(TaskDependency.dependent_task_id).where(
+            TaskDependency.task_id == completed_task_id
+        )
+    )
+    dependent_ids = [row[0] for row in result.all()]
+
+    if not dependent_ids:
+        return
+
+    for dep_id in dependent_ids:
+        # 检查该后续任务是否处于 blocked 状态
+        dep_result = await db.execute(select(Task).where(Task.id == dep_id))
+        dep_task = dep_result.scalar_one_or_none()
+        if not dep_task or dep_task.status != "blocked":
+            continue
+
+        # 检查它的所有前置是否都完成了
+        blockers = await check_dependencies_before_start(db, dep_id)
+        if not blockers:
+            # 所有前置完成，自动解锁
+            dep_task.status = "pending"
+
+
+async def detect_dag_cycle(db: AsyncSession, from_task_id: int, to_task_id: int) -> bool:
+    """使用 BFS 检测添加 from_task_id → to_task_id 的依赖后是否会产生环。
+    from_task_id 是前置任务，to_task_id 是后续任务。
+    如果从 to_task_id 出发，沿着依赖链能回到 from_task_id，则存在环。
+    返回 True 表示存在环。
+    """
+    visited = set()
+    queue = deque([to_task_id])
+
+    while queue:
+        current = queue.popleft()
+        if current == from_task_id:
+            return True  # 发现环
+        if current in visited:
+            continue
+        visited.add(current)
+
+        # 找到 current 作为前置任务时，它的所有后续任务
+        # 即：如果 current 是某个依赖关系中的 task_id，找 dependent_task_id
+        # 但实际上我们要沿着 "current 依赖了谁" 的方向走：
+        # current 作为 dependent_task_id 时，它依赖的 task_id 们
+        # 不对，应该沿着 "current 被谁依赖" 的方向走。
+        # 换个思路：添加的边是 from -> to（from 完成了 to 才能开始）
+        # 如果从 to 出发沿着现有的 "task_id" 链走能到达 from，则有环
+        # 现有关系：task_id（前置） -> dependent_task_id（后续）
+        # 从 to_task_id 出发，看 to 作为 task_id（前置）时的后续任务
+        result = await db.execute(
+            select(TaskDependency.dependent_task_id).where(
+                TaskDependency.task_id == current
+            )
+        )
+        for row in result.all():
+            if row[0] not in visited:
+                queue.append(row[0])
+
+    return False
+
+
 def build_task_tree(tasks: list[Task]) -> list[dict]:
     """构建任务树形结构 - 使用 HashMap 映射表优化（O(n) 复杂度）。
 
@@ -138,6 +225,8 @@ def build_task_tree(tasks: list[Task]) -> list[dict]:
                 "start_date": str(task.start_date) if task.start_date else None,
                 "due_date": str(task.due_date) if task.due_date else None,
                 "sort_order": task.sort_order,
+                "task_type": task.task_type,
+                "metadata": task.metadata_dict,
                 "children": build_children(task.id)
             })
         return result
@@ -193,8 +282,13 @@ async def create_task(
         priority=task_data.priority,
         start_date=task_data.start_date,
         due_date=task_data.due_date,
-        estimated_time=task_data.estimated_time
+        estimated_time=task_data.estimated_time,
+        task_type=task_data.task_type or 'manual',
     )
+    # 处理 metadata
+    if task_data.metadata:
+        task.metadata_dict = task_data.metadata
+
     db.add(task)
     await db.commit()
     await db.refresh(task)
@@ -211,7 +305,9 @@ async def create_task(
             "assignee_id": task.assignee_id,
             "status": task.status,
             "priority": task.priority,
-            "progress": task.progress
+            "progress": task.progress,
+            "task_type": task.task_type,
+            "metadata": task.metadata_dict,
         }
     )
 
@@ -278,7 +374,9 @@ async def list_tasks(
                     "status": t.status,
                     "priority": t.priority,
                     "progress": t.progress,
-                    "sort_order": t.sort_order
+                    "sort_order": t.sort_order,
+                    "task_type": t.task_type,
+                    "metadata": t.metadata_dict,
                 }
                 for t in tasks
             ],
@@ -333,6 +431,8 @@ async def get_task(
             "start_date": str(task.start_date) if task.start_date else None,
             "due_date": str(task.due_date) if task.due_date else None,
             "sort_order": task.sort_order,
+            "task_type": task.task_type,
+            "metadata": task.metadata_dict,
             "children": [
                 {"id": c.id, "name": c.name, "status": c.status, "progress": c.progress}
                 for c in children
@@ -342,7 +442,7 @@ async def get_task(
                 for t in tags
             ],
             "dependencies": [
-                {"id": d.id, "task_id": d.task_id, "dependent_task_id": d.dependent_task_id}
+                {"id": d.id, "task_id": d.task_id, "dependent_task_id": d.dependent_task_id, "dependency_type": d.dependency_type}
                 for d in dependencies
             ]
         }
@@ -356,14 +456,32 @@ async def update_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """更新任务属性，包含状态流转合法性校验和自动通知生成。"""
+    """更新任务属性，包含状态流转合法性校验、依赖感知检查和自动通知生成。"""
     task = await get_task_with_access(task_id, db, current_user)
     update_dict = task_data.model_dump(exclude_unset=True)
+
+    # --- 处理 metadata 字段（JSON 序列化） ---
+    metadata_value = update_dict.pop("metadata", None)
+    if metadata_value is not None:
+        task.metadata_dict = metadata_value
 
     # --- 状态流转校验 (CROSS-02 fix) ---
     new_status = update_dict.get("status")
     if new_status and new_status != task.status:
-        validate_status_transition(task.status, new_status)
+        # 将枚举转为字符串值
+        new_status_str = new_status.value if hasattr(new_status, 'value') else str(new_status)
+
+        validate_status_transition(task.status, new_status_str)
+
+        # 依赖感知：尝试启动任务时（pending/blocked → in_progress），检查前置依赖
+        if new_status_str == "in_progress":
+            blockers = await check_dependencies_before_start(db, task_id)
+            if blockers:
+                blocker_names = ', '.join([f"「{b['name']}」({b['status']})" for b in blockers])
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"无法启动：有 {len(blockers)} 个前置任务未完成 — {blocker_names}"
+                )
 
         # 任务状态变更时，向任务负责人发送通知 (CROSS-03 fix)
         if task.assignee_id and task.assignee_id != current_user.id:
@@ -372,7 +490,7 @@ async def update_task(
                 user_id=task.assignee_id,
                 type="task_status",
                 title=f"任务状态已更新",
-                content=f'任务「{task.name}」状态已从 {task.status} 变更为 {new_status}',
+                content=f'任务「{task.name}」状态已从 {task.status} 变更为 {new_status_str}',
                 related_id=task.id,
                 related_type="task",
             )
@@ -382,6 +500,12 @@ async def update_task(
         setattr(task, field, value)
 
     await db.commit()
+
+    # --- 级联解锁：如果任务刚完成，检查并解锁后续任务 ---
+    if new_status and (new_status.value if hasattr(new_status, 'value') else str(new_status)) == "completed":
+        await cascade_unlock_dependents(db, task_id)
+        await db.commit()
+
     await db.refresh(task)
 
     return MessageResponse(message="更新成功", data={"id": task.id, "name": task.name})
@@ -565,14 +689,21 @@ async def create_dependency(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """创建任务依赖关系（task_id 是前置任务，dep_data.dependent_task_id 是后续任务）。
+    包含 DAG 环路检测，确保不会创建循环依赖。
+    """
     task = await get_task_with_access(task_id, db, current_user)
+
+    # 不能依赖自己
+    if dep_data.dependent_task_id == task_id:
+        raise HTTPException(status_code=400, detail="任务不能依赖自身")
 
     # 验证依赖任务
     result = await db.execute(select(Task).where(Task.id == dep_data.dependent_task_id))
     dep_task = result.scalar_one_or_none()
 
     if not dep_task or dep_task.project_id != task.project_id:
-        raise HTTPException(status_code=400, detail="依赖任务不存在")
+        raise HTTPException(status_code=400, detail="依赖任务不存在或不在同一项目")
 
     # 检查是否已存在
     result = await db.execute(
@@ -586,11 +717,25 @@ async def create_dependency(
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="依赖关系已存在")
 
+    # DAG 环路检测
+    has_cycle = await detect_dag_cycle(db, task_id, dep_data.dependent_task_id)
+    if has_cycle:
+        raise HTTPException(
+            status_code=400,
+            detail="无法创建此依赖关系：会产生循环依赖"
+        )
+
     dependency = TaskDependency(
         task_id=task_id,
-        dependent_task_id=dep_data.dependent_task_id
+        dependent_task_id=dep_data.dependent_task_id,
+        dependency_type=dep_data.dependency_type,
     )
     db.add(dependency)
+
+    # 如果后续任务当前是 pending 且前置任务未完成，自动标记为 blocked
+    if dep_task.status == "pending" and task.status != "completed":
+        dep_task.status = "blocked"
+
     await db.commit()
 
     return MessageResponse(code=201, message="创建依赖成功")

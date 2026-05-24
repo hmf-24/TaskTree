@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dayjs from 'dayjs';
 import {
   Modal,
@@ -16,7 +16,6 @@ import {
   Alert,
   DatePicker,
   InputNumber,
-  Drawer,
 } from 'antd';
 import {
   RobotOutlined,
@@ -26,8 +25,11 @@ import {
   DeleteOutlined,
   SaveOutlined,
   HistoryOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
 } from '@ant-design/icons';
 import { llmTasksAPI, tasksAPI, conversationsAPI } from '../../api';
+import ConversationHistoryDrawer from '../ai/ConversationHistoryDrawer';
 import type { Conversation } from '../../types';
 
 const { TextArea } = Input;
@@ -78,8 +80,10 @@ export default function AITaskCreatorModal({
   
   // 对话历史状态
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  
+  // 窗口最大化状态
+  const [isMaximized, setIsMaximized] = useState(false);
   
   const chatListRef = useRef<HTMLDivElement>(null);
 
@@ -98,42 +102,54 @@ export default function AITaskCreatorModal({
       setInputValue('');
       setRequirement('');
       setSubtasks([]);
+      setCurrentConversationId(null);
+      setIsMaximized(false);
+      
+      // 创建新对话
+      createNewConversation();
     }
   }, [open]);
-
-  // 加载对话历史
-  const fetchConversations = async () => {
-    setLoadingHistory(true);
+  
+  // 创建新对话
+  const createNewConversation = async () => {
     try {
-      const res = await conversationsAPI.list({
+      const res = await conversationsAPI.create({
         project_id: projectId,
         conversation_type: 'create',
       });
-      if (res.code === 200) {
-        setConversations(res.data || []);
+      
+      if (res.code === 200 || res.code === 201) {
+        setCurrentConversationId(res.data.id);
       }
     } catch (error: any) {
-      message.error('加载对话历史失败');
-    } finally {
-      setLoadingHistory(false);
+      console.error('创建对话失败:', error);
+      // 不阻塞用户操作，即使创建失败也可以继续使用
     }
   };
 
   // 加载历史对话
-  const loadConversation = async (conv: Conversation) => {
+  const loadConversation = async (convId: number) => {
     try {
+      const res = await conversationsAPI.get(convId);
+      
       // 将历史消息转换为当前格式
-      const messages = conv.messages.map((msg) => ({
-        role: msg.role,
+      const messages = res.data.messages.map((msg: any) => ({
+        role: msg.role as 'user' | 'assistant',
         content: msg.content,
       }));
+      
       setChatMessages(messages);
-      setRequirement(messages.map((m) => `${m.role}: ${m.content}`).join('\n'));
-      setHistoryOpen(false);
+      setRequirement(messages.map((m: any) => `${m.role}: ${m.content}`).join('\n'));
+      setCurrentConversationId(res.data.id);
       message.success('已加载历史对话');
     } catch (error: any) {
       message.error('加载对话失败');
     }
+  };
+  
+  // 切换最大化状态
+  const toggleMaximize = () => {
+    setIsMaximized(!isMaximized);
   };
 
   const handleSendChat = async () => {
@@ -153,8 +169,22 @@ export default function AITaskCreatorModal({
       });
       
       if (res.code === 200 && res.data?.reply) {
-        setChatMessages([...newMessages, { role: 'assistant', content: res.data.reply }]);
-        setRequirement(newMessages.map(m => `${m.role}: ${m.content}`).join('\n') + `\nassistant: ${res.data.reply}`);
+        const assistantMessage = { role: 'assistant' as const, content: res.data.reply };
+        const updatedMessages = [...newMessages, assistantMessage];
+        setChatMessages(updatedMessages);
+        setRequirement(updatedMessages.map(m => `${m.role}: ${m.content}`).join('\n'));
+        
+        // 保存消息到对话历史
+        if (currentConversationId) {
+          try {
+            await conversationsAPI.sendMessage(currentConversationId, {
+              content: inputValue.trim()
+            });
+          } catch (error) {
+            console.error('保存对话失败:', error);
+            // 不阻塞用户操作
+          }
+        }
       } else {
         throw new Error(res.message || 'LLM 对话失败');
       }
@@ -397,44 +427,98 @@ export default function AITaskCreatorModal({
 
   return (
     <>
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>✨ AI 智能任务创建</span>
-            <Button
-              type="text"
-              icon={<HistoryOutlined />}
-              onClick={() => {
-                fetchConversations();
-                setHistoryOpen(true);
-              }}
-            >
-              历史对话
-            </Button>
-          </div>
-        }
-        open={open}
-        onCancel={onCancel}
-        width={1200}
-        footer={null}
-        destroyOnClose
+      {/* 自定义可调整大小的对话框 */}
+      <div
+        style={{
+          display: open ? 'flex' : 'none',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          zIndex: 1000,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        onClick={onCancel}
       >
+        <div
+          style={{
+            width: isMaximized ? '100vw' : '90%',
+            maxWidth: isMaximized ? '100vw' : '1400px',
+            minWidth: isMaximized ? '100vw' : '800px',
+            height: isMaximized ? '100vh' : '80vh',
+            minHeight: isMaximized ? '100vh' : '600px',
+            maxHeight: isMaximized ? '100vh' : '90vh',
+            backgroundColor: '#fff',
+            borderRadius: isMaximized ? '0' : '8px',
+            boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            resize: isMaximized ? 'none' : 'both',
+            overflow: 'hidden',
+            position: 'relative',
+            transition: 'all 0.3s ease',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div
+            style={{
+              padding: '16px 24px',
+              borderBottom: '1px solid #f0f0f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: '16px', fontWeight: 500 }}>✨ AI 智能任务创建</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Button
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoryOpen(true)}
+              >
+                历史对话
+              </Button>
+              <Button
+                type="text"
+                icon={isMaximized ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                onClick={toggleMaximize}
+                title={isMaximized ? '还原窗口' : '最大化窗口'}
+              />
+              <Button 
+                type="text" 
+                onClick={onCancel} 
+                style={{ fontSize: '20px', lineHeight: 1, padding: '4px 8px' }}
+              >
+                ×
+              </Button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
       <Steps 
         current={currentStep} 
         items={[
           { title: '需求澄清', description: '与AI对话细化需求' },
           { title: '结构分解', description: '确认并编辑子任务' }
         ]} 
-        style={{ marginBottom: 24 }}
+        style={{ marginBottom: 16 }}
+        size="small"
       />
       
       {currentStep === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '400px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 60px)' }}>
           <Alert 
             message="提示: 在这里输入您想创建的任务,例如「做一个用户登录页面」,AI会帮您追问细节直到需求清晰为止。" 
             type="info" 
             showIcon 
-            style={{ marginBottom: 16 }}
+            style={{ marginBottom: 12 }}
+            closable
           />
           
           <div 
@@ -445,7 +529,8 @@ export default function AITaskCreatorModal({
               padding: '16px', 
               background: '#f5f5f5', 
               borderRadius: '8px',
-              marginBottom: '16px'
+              marginBottom: '12px',
+              minHeight: '200px'
             }}
           >
             {chatMessages.length === 0 ? (
@@ -498,12 +583,12 @@ export default function AITaskCreatorModal({
             )}
           </div>
           
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <TextArea 
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
               placeholder="描述您的需求细节..."
-              autoSize={{ minRows: 2, maxRows: 4 }}
+              autoSize={{ minRows: 2, maxRows: 3 }}
               onPressEnter={(e) => {
                 if (!e.shiftKey) {
                   e.preventDefault();
@@ -517,13 +602,13 @@ export default function AITaskCreatorModal({
               icon={<SendOutlined />} 
               onClick={handleSendChat} 
               loading={chatLoading}
-              style={{ height: 'auto' }}
+              style={{ height: 'auto', flexShrink: 0 }}
             >
               发送
             </Button>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px', flexShrink: 0 }}>
             <Button 
               type="primary" 
               onClick={handleDecompose}
@@ -577,36 +662,18 @@ export default function AITaskCreatorModal({
           </div>
         </div>
       )}
-    </Modal>
+          </div>
+        </div>
+      </div>
 
-    {/* 历史对话抽屉 */}
-    <Drawer
-      title="历史对话"
-      open={historyOpen}
-      onClose={() => setHistoryOpen(false)}
-      width={400}
-    >
-      <List
-        loading={loadingHistory}
-        dataSource={conversations}
-        renderItem={(conv) => (
-          <List.Item
-            onClick={() => loadConversation(conv)}
-            style={{ cursor: 'pointer' }}
-          >
-            <List.Item.Meta
-              title={conv.title || '任务创建对话'}
-              description={
-                <>
-                  <Tag color="purple">任务创建</Tag>
-                  <span>{dayjs(conv.created_at).format('YYYY-MM-DD HH:mm')}</span>
-                </>
-              }
-            />
-          </List.Item>
-        )}
+      {/* 历史对话抽屉 */}
+      <ConversationHistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onSelect={loadConversation}
+        projectId={projectId}
+        conversationType="create"
       />
-    </Drawer>
-  </>
+    </>
   );
 }

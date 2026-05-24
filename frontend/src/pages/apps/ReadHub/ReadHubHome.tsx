@@ -29,6 +29,8 @@ interface Article {
   published_at: string | null;
   is_read: boolean;
   is_saved_to_obsidian: boolean;
+  importance?: string;
+  tags?: string;
 }
 
 interface ArticleDetail extends Article {
@@ -40,6 +42,8 @@ export default function ReadHubHome() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [totalArticles, setTotalArticles] = useState(0);
   const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
+  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
+  const [feedAuthors, setFeedAuthors] = useState<string[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -52,6 +56,7 @@ export default function ReadHubHome() {
   const [converting, setConverting] = useState(false);
   const [projects, setProjects] = useState<{id: number; name: string}[]>([]);
   const [convertProjectId, setConvertProjectId] = useState<number | null>(null);
+  const [generatingAi, setGeneratingAi] = useState(false);
 
   // 加载订阅源列表
   const loadFeeds = useCallback(async () => {
@@ -64,11 +69,12 @@ export default function ReadHubHome() {
   }, []);
 
   // 加载文章列表
-  const loadArticles = useCallback(async (feedId?: number | null, p?: number) => {
+  const loadArticles = useCallback(async (feedId?: number | null, author?: string | null, p?: number) => {
     setLoading(true);
     try {
       const res: any = await articlesAPI.list({
         feed_id: feedId ?? undefined,
+        author: author ?? undefined,
         page: p ?? page,
         page_size: 30,
       });
@@ -83,8 +89,31 @@ export default function ReadHubHome() {
     }
   }, [page]);
 
+  // 加载作者列表
+  const loadFeedAuthors = useCallback(async (feedId: number) => {
+    try {
+      const res: any = await feedsAPI.authors(feedId);
+      if (res.code === 200) {
+        setFeedAuthors(res.data);
+      }
+    } catch (e) {
+      console.error('Failed to load authors', e);
+    }
+  }, []);
+
   useEffect(() => { loadFeeds(); }, [loadFeeds]);
-  useEffect(() => { loadArticles(selectedFeedId, page); }, [selectedFeedId, page]);
+  
+  useEffect(() => { 
+    loadArticles(selectedFeedId, selectedAuthor, page); 
+  }, [selectedFeedId, selectedAuthor, page, loadArticles]);
+
+  useEffect(() => {
+    if (selectedFeedId) {
+      loadFeedAuthors(selectedFeedId);
+    } else {
+      setFeedAuthors([]);
+    }
+  }, [selectedFeedId, loadFeedAuthors]);
 
   // 手动拉取
   const handleFetch = async () => {
@@ -192,29 +221,52 @@ export default function ReadHubHome() {
             fontSize: 13, fontWeight: selectedFeedId === null ? 500 : 400,
             transition: 'all 0.15s var(--ease-smooth)',
           }}
-          onClick={() => { setSelectedFeedId(null); setPage(1); }}
+          onClick={() => { setSelectedFeedId(null); setSelectedAuthor(null); setPage(1); }}
         >
           全部文章
         </div>
 
         {feeds.map((feed) => (
-          <div
-            key={feed.id}
-            style={{
-              padding: '8px 12px', borderRadius: 'var(--radius-button)', cursor: 'pointer',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              background: selectedFeedId === feed.id ? 'var(--color-surface-active)' : 'transparent',
-              color: selectedFeedId === feed.id ? 'var(--color-ink)' : 'var(--color-ink-secondary)',
-              fontSize: 13, fontWeight: selectedFeedId === feed.id ? 500 : 400,
-              transition: 'all 0.15s var(--ease-smooth)',
-            }}
-            onClick={() => { setSelectedFeedId(feed.id); setPage(1); }}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{feed.name}</span>
-            <DeleteOutlined
-              style={{ fontSize: 12, color: 'var(--color-ink-tertiary)', flexShrink: 0 }}
-              onClick={(e) => { e.stopPropagation(); handleDeleteFeed(feed); }}
-            />
+          <div key={feed.id}>
+            <div
+              style={{
+                padding: '8px 12px', borderRadius: 'var(--radius-button)', cursor: 'pointer',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: selectedFeedId === feed.id && !selectedAuthor ? 'var(--color-surface-active)' : 'transparent',
+                color: selectedFeedId === feed.id ? 'var(--color-ink)' : 'var(--color-ink-secondary)',
+                fontSize: 13, fontWeight: selectedFeedId === feed.id ? 500 : 400,
+                transition: 'all 0.15s var(--ease-smooth)',
+              }}
+              onClick={() => { setSelectedFeedId(feed.id); setSelectedAuthor(null); setPage(1); }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{feed.name}</span>
+              <DeleteOutlined
+                style={{ fontSize: 12, color: 'var(--color-ink-tertiary)', flexShrink: 0 }}
+                onClick={(e) => { e.stopPropagation(); handleDeleteFeed(feed); }}
+              />
+            </div>
+            
+            {/* 展开的作者子列表 */}
+            {selectedFeedId === feed.id && feedAuthors.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 16, marginTop: 4, marginBottom: 8 }}>
+                {feedAuthors.map(author => (
+                  <div
+                    key={author}
+                    style={{
+                      padding: '6px 12px', borderRadius: 'var(--radius-button)', cursor: 'pointer',
+                      background: selectedAuthor === author ? 'var(--color-surface-active)' : 'transparent',
+                      color: selectedAuthor === author ? 'var(--color-brand)' : 'var(--color-ink-tertiary)',
+                      fontSize: 12,
+                      transition: 'all 0.15s var(--ease-smooth)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                    }}
+                    onClick={() => { setSelectedAuthor(author); setPage(1); }}
+                  >
+                    # {author}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 
@@ -239,41 +291,127 @@ export default function ReadHubHome() {
           <Empty description="暂无文章，点击左上角拉取最新内容" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {articles.map((article) => (
-              <div
-                key={article.id}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 'var(--radius-button)',
-                  cursor: 'pointer',
-                  background: selectedArticle?.id === article.id ? 'var(--color-surface-active)' : 'transparent',
-                  transition: 'background 0.15s var(--ease-smooth)',
-                  borderLeft: selectedArticle?.id === article.id ? '2px solid var(--color-brand)' : '2px solid transparent',
-                }}
-                onClick={() => handleArticleClick(article)}
-                onMouseEnter={(e) => { if (selectedArticle?.id !== article.id) (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-hover)'; }}
-                onMouseLeave={(e) => { if (selectedArticle?.id !== article.id) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  {!article.is_read && (
-                    <Badge dot color="rgba(100,180,255,0.9)" style={{ marginTop: 6 }} />
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 14, fontWeight: article.is_read ? 400 : 500,
-                      color: article.is_read ? 'var(--color-ink-secondary)' : 'var(--color-ink)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {article.title}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--color-ink-tertiary)', marginTop: 4 }}>
-                      {article.author && <span>{article.author} · </span>}
-                      {article.published_at ? new Date(article.published_at).toLocaleDateString('zh-CN') : ''}
+            {(() => {
+              // 分类逻辑
+              const grouped: Record<string, Article[]> = {
+                high: [],
+                medium: [],
+                low: [],
+                unrelated: []
+              };
+              
+              articles.forEach(a => {
+                const imp = a.importance || 'medium';
+                if (imp === 'high') grouped.high.push(a);
+                else if (imp === 'low') grouped.low.push(a);
+                else if (imp === 'unrelated') grouped.unrelated.push(a);
+                else grouped.medium.push(a);
+              });
+              
+              const renderArticle = (article: Article, showIcon: string) => {
+                let tagsList: string[] = [];
+                try {
+                  if (article.tags) tagsList = JSON.parse(article.tags);
+                } catch(e) {}
+                
+                return (
+                  <div
+                    key={article.id}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 'var(--radius-button)',
+                      cursor: 'pointer',
+                      background: selectedArticle?.id === article.id ? 'var(--color-surface-active)' : 'transparent',
+                      transition: 'background 0.15s var(--ease-smooth)',
+                      borderLeft: selectedArticle?.id === article.id ? '2px solid var(--color-brand)' : '2px solid transparent',
+                      opacity: article.importance === 'unrelated' ? 0.6 : 1
+                    }}
+                    onClick={() => handleArticleClick(article)}
+                    onMouseEnter={(e) => { if (selectedArticle?.id !== article.id) (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-hover)'; }}
+                    onMouseLeave={(e) => { if (selectedArticle?.id !== article.id) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                      {!article.is_read && (
+                        <Badge dot color="rgba(100,180,255,0.9)" style={{ marginTop: 6 }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 14, fontWeight: article.is_read ? 400 : 500,
+                          color: article.is_read ? 'var(--color-ink-secondary)' : 'var(--color-ink)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          display: 'flex', alignItems: 'center', gap: 6
+                        }}>
+                          {showIcon && <span style={{ fontSize: 13 }}>{showIcon}</span>}
+                          {article.title}
+                          {tagsList.map(t => <span key={t} style={{ fontSize: 11, background: 'rgba(0,0,0,0.04)', padding: '0 4px', borderRadius: 4, color: 'var(--color-brand)' }}>#{t}</span>)}
+                        </div>
+                        {article.summary && (
+                          <div style={{ 
+                            fontSize: 12, color: 'var(--color-ink-secondary)', marginTop: 6,
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                          }}>
+                            {article.summary}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 12, color: 'var(--color-ink-tertiary)', marginTop: 6, display: 'flex', gap: 12 }}>
+                          <span>{article.author || '未知作者'}</span>
+                          <span>{article.published_at ? new Date(article.published_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              };
+
+              return (
+                <>
+                  {grouped.high.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#f5222d', marginBottom: 8, paddingLeft: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 3, height: 12, background: '#f5222d', borderRadius: 2 }} />
+                        🔥 核心必读 ({grouped.high.length})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {grouped.high.map(a => renderArticle(a, '🔥'))}
+                      </div>
+                    </div>
+                  )}
+                  {grouped.medium.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink-tertiary)', marginBottom: 8, paddingLeft: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 3, height: 12, background: 'var(--color-border)', borderRadius: 2 }} />
+                        ✨ 推荐阅读 ({grouped.medium.length})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {grouped.medium.map(a => renderArticle(a, ''))}
+                      </div>
+                    </div>
+                  )}
+                  {grouped.low.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink-tertiary)', marginBottom: 8, paddingLeft: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 3, height: 12, background: 'var(--color-border)', borderRadius: 2 }} />
+                        🔹 边缘资讯 ({grouped.low.length})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {grouped.low.map(a => renderArticle(a, '🔹'))}
+                      </div>
+                    </div>
+                  )}
+                  {grouped.unrelated.length > 0 && (
+                    <div style={{ marginBottom: 16, marginTop: 24, paddingTop: 16, borderTop: '1px dashed var(--color-border)' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink-tertiary)', marginBottom: 8, paddingLeft: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 3, height: 12, background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 2 }} />
+                        🗃️ 其他未命中关注领域的文章 ({grouped.unrelated.length})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {grouped.unrelated.map(a => renderArticle(a, ''))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -367,7 +505,43 @@ export default function ReadHubHome() {
                 转为任务
               </Button>
             </Tooltip>
+            <Tooltip title="使用大模型生成内容概览">
+              <Button
+                size="small"
+                icon={<ReadOutlined />}
+                loading={generatingAi}
+                onClick={async () => {
+                  setGeneratingAi(true);
+                  try {
+                    const res: any = await articlesAPI.generateAiSummary(selectedArticle.id);
+                    if (res.code === 200 && res.data?.summary) {
+                      message.success('概览生成成功');
+                      setSelectedArticle(prev => prev ? { ...prev, summary: res.data.summary } : prev);
+                      setArticles(prev => prev.map(a => a.id === selectedArticle.id ? { ...a, summary: res.data.summary } : a));
+                    }
+                  } catch (e: any) {
+                    message.error(e.detail || e.message || '生成失败');
+                  } finally {
+                    setGeneratingAi(false);
+                  }
+                }}
+              >
+                ✨ AI 概览
+              </Button>
+            </Tooltip>
           </div>
+          {selectedArticle.summary && selectedArticle.summary.startsWith('[AI 概览]') && (
+            <div style={{
+              padding: '12px 16px', background: 'var(--color-surface-hover)',
+              borderRadius: 'var(--radius-panel)', marginBottom: 16,
+              borderLeft: '3px solid var(--color-brand)',
+              fontSize: 14, color: 'var(--color-ink-secondary)',
+              lineHeight: 1.6
+            }}>
+              <strong>✨ AI 概览：</strong>
+              {selectedArticle.summary.replace('[AI 概览]', '').trim()}
+            </div>
+          )}
           <div
             className="prose-bubble"
             dangerouslySetInnerHTML={{ __html: selectedArticle.content_html || '<p>暂无正文内容</p>' }}

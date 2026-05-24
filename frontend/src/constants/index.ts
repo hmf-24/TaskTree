@@ -4,6 +4,7 @@ export const TASK_STATUS = {
   IN_PROGRESS: 'in_progress',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
+  BLOCKED: 'blocked',
 } as const;
 
 // 任务优先级
@@ -33,6 +34,7 @@ export const STATUS_COLORS: Record<string, string> = {
   in_progress: 'blue',
   completed: 'green',
   cancelled: 'default',
+  blocked: 'orange',
 };
 
 // 优先级颜色映射（低饱和度马卡龙色）
@@ -48,6 +50,7 @@ export const KANBAN_COLUMN_COLORS: Record<string, string> = {
   in_progress: '#1F6C9F',
   completed: '#346538',
   cancelled: '#9F2F2D',
+  blocked: '#C27A2A',
 };
 
 // 状态标签映射
@@ -56,6 +59,7 @@ export const STATUS_LABELS: Record<string, string> = {
   in_progress: '进行中',
   completed: '已完成',
   cancelled: '已取消',
+  blocked: '已阻塞',
 };
 
 // 优先级标签映射

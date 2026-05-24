@@ -74,8 +74,25 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        print("✓ 数据库初始化成功")
+            
+            # 手动执行 ALTER TABLE 增加缺失的字段 (兼容旧版本 SQLite)
+            # 使用 text 执行，忽略错误(比如列已存在)
+            from sqlalchemy import text
+            alter_sqls = [
+                "ALTER TABLE readhub_settings ADD COLUMN dingtalk_webhook VARCHAR(500)",
+                "ALTER TABLE readhub_settings ADD COLUMN dingtalk_secret VARCHAR(100)",
+                "ALTER TABLE readhub_settings ADD COLUMN dingtalk_client_id VARCHAR(100)",
+                "ALTER TABLE readhub_settings ADD COLUMN dingtalk_client_secret_encrypted TEXT",
+                "ALTER TABLE readhub_settings ADD COLUMN dingtalk_stream_enabled BOOLEAN DEFAULT 0"
+            ]
+            for sql in alter_sqls:
+                try:
+                    await conn.execute(text(sql))
+                except Exception:
+                    pass # 列已存在会抛错，忽略即可
+                    
+        print("[SUCCESS] 数据库初始化成功")
     except Exception as e:
         # 如果表已存在，忽略错误继续启动
-        print(f"⚠ 数据库初始化警告: {e}")
+        print(f"[WARNING] 数据库初始化警告: {e}")
         print("  继续启动应用...")

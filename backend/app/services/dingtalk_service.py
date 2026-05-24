@@ -38,7 +38,9 @@ class DingtalkService:
         use_stream_mode: bool = False,
         client_id: str = None,
         client_secret: str = None,
-        robot_code: str = None
+        robot_code: str = None,
+        conversation_type: str = None,
+        conversation_id: str = None
     ) -> dict:
         """发送钉钉消息（支持Webhook和Stream两种模式）
 
@@ -67,7 +69,9 @@ class DingtalkService:
                 title=title,
                 client_id=client_id,
                 client_secret=client_secret,
-                robot_code=robot_code or client_id  # 如果没有robot_code，使用client_id
+                robot_code=robot_code or client_id,  # 如果没有robot_code，使用client_id
+                conversation_type=conversation_type,
+                conversation_id=conversation_id
             )
         
         # 否则使用Webhook模式
@@ -163,9 +167,11 @@ class DingtalkService:
         title: str,
         client_id: str,
         client_secret: str,
-        robot_code: str
+        robot_code: str,
+        conversation_type: str = None,
+        conversation_id: str = None
     ) -> dict:
-        """使用Stream模式发送消息（单聊）"""
+        """使用Stream模式发送消息"""
         try:
             # 1. 获取Access Token
             access_token = await self._get_access_token(client_id, client_secret)
@@ -186,24 +192,29 @@ class DingtalkService:
                 msg_key = "sampleText"
             
             # 3. 调用钉钉消息发送API
-            api_url = f"{self.api_base_url}/v1.0/robot/oToMessages/batchSend"
+            if conversation_type == "2" and conversation_id:
+                api_url = f"{self.api_base_url}/v1.0/robot/groupMessages/send"
+                payload = {
+                    "robotCode": robot_code,
+                    "openConversationId": conversation_id,
+                    "msgKey": msg_key,
+                    "msgParam": msg_param
+                }
+                print(f"[INFO] 通过 Stream 接口发送群聊消息, conversation_id={conversation_id}")
+            else:
+                api_url = f"{self.api_base_url}/v1.0/robot/oToMessages/batchSend"
+                payload = {
+                    "robotCode": robot_code,
+                    "userIds": [dingtalk_user_id],
+                    "msgKey": msg_key,
+                    "msgParam": msg_param
+                }
+                print(f"[INFO] 通过 Stream 接口发送单聊消息, userIds=[{dingtalk_user_id}]")
+            
             headers = {
                 "Content-Type": "application/json",
                 "x-acs-dingtalk-access-token": access_token
             }
-            payload = {
-                "robotCode": robot_code,
-                "userIds": [dingtalk_user_id],
-                "msgKey": msg_key,
-                "msgParam": msg_param
-            }
-            
-            print(f"📡 Stream模式发送消息:")
-            print(f"   API: {api_url}")
-            print(f"   Robot Code: {robot_code}")
-            print(f"   User ID: {dingtalk_user_id}")
-            print(f"   Msg Key: {msg_key}")
-            print(f"   Msg Param: {msg_param}")
             
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -419,6 +430,46 @@ class DingtalkService:
         return await self.send_message(
             content,
             title=f"任务提醒 - {project_name}"
+        )
+
+    async def send_rss_articles(self, articles: list, dingtalk_user_id: str, **kwargs) -> dict:
+        """批量推送 RSS 新文章提醒"""
+        if not articles:
+            return {"success": False, "error": "没有文章可推送"}
+
+        # 一次推送最多展示 5 篇，避免过长
+        display_articles = articles[:5]
+        
+        lines = ["## 📰 ReadHub 有新文章啦！\n"]
+        for i, article in enumerate(display_articles, 1):
+            feed_name = article.feed.name if hasattr(article, "feed") and article.feed else "未知来源"
+            lines.append(f"### {i}. {article.title}")
+            lines.append(f"**来源**: {feed_name}")
+            if article.summary and article.summary.strip() != "":
+                # 截断摘要避免过长
+                summary = article.summary[:100] + "..." if len(article.summary) > 100 else article.summary
+                lines.append(f"> {summary}")
+            elif hasattr(article, 'content_html') and article.content_html:
+                import re
+                raw = article.content_html
+                clean = re.sub(r'<[^>]+>', '', raw).strip()
+                clean = re.sub(r'\s+', ' ', clean)
+                summary = clean[:100] + "..." if len(clean) > 100 else clean
+                lines.append(f"> {summary}")
+            
+            lines.append(f"[🔗 点击在微信阅读原文]({article.source_url})")
+            lines.append(f"*如需收藏，请直接回复指令：`/save {article.id}`*\n")
+            lines.append("---")
+        
+        if len(articles) > 5:
+            lines.append(f"\n💡 *还有 {len(articles) - 5} 篇新文章，请前往 ReadHub 查看。*")
+
+        content = "\n".join(lines)
+        return await self.send_message(
+            dingtalk_user_id=dingtalk_user_id,
+            content=content,
+            title="ReadHub 新文章推送",
+            **kwargs
         )
 
 

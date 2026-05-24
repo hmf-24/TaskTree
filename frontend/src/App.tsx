@@ -9,6 +9,7 @@ import Settings from './pages/Settings/Settings';
 import Layout from './components/layout/Layout';
 import ReadHubHome from './pages/apps/ReadHub/ReadHubHome';
 import ReadHubSettings from './pages/apps/ReadHub/ReadHubSettings';
+import TaskTreeSettings from './pages/Project/TaskTreeSettings';
 
 function App() {
   const { isAuthenticated } = useAuthStore();
@@ -41,6 +42,7 @@ function AppRoutes() {
       <Route path="app/tasktree" element={<Layout />}>
         <Route index element={<ProjectList />} />
         <Route path="project/:id" element={<ProjectDetail />} />
+        <Route path="settings" element={<TaskTreeSettings />} />
       </Route>
 
       {/* ReadHub 应用 — 带侧边栏的 Layout */}

@@ -244,6 +244,7 @@ export default function AIAssistantPanel({
         onClose={() => setHistoryOpen(false)}
         onSelect={loadConversation}
         projectId={projectId}
+        conversationType={mode}
       />
     </>
   );

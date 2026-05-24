@@ -185,7 +185,10 @@ async def process_dingtalk_message(
     user_id: int,
     dingtalk_user_id: str,
     message_content: str,
-    db: AsyncSession
+    db: AsyncSession,
+    app_source: str = "tasktree",
+    conversation_type: str = None,
+    conversation_id: str = None
 ):
     """
     处理钉钉消息 — 三步架构
@@ -198,106 +201,122 @@ async def process_dingtalk_message(
     2. 解析意图 (IntentResolver: 斜杠命令 → 规则引擎 → LLM)
     3. 执行动作 (ActionExecutor)
     """
-    from app.services.intent_resolver import IntentResolver
-    from app.services.context_builder import ContextBuilder
-    from app.services.action_executor import ActionExecutor
-    from app.core.config import settings as app_settings
-    
     try:
-        print(f"📨 收到钉钉消息: sender={dingtalk_user_id}, content={message_content}")
-        print(f"✅ 找到用户: user_id={user_id}")
-        
-        # ── 获取 Stream 模式配置 ──
-        result = await db.execute(
-            select(UserNotificationSettings).where(
-                UserNotificationSettings.user_id == user_id
-            )
-        )
-        settings = result.scalar_one_or_none()
+        # ── 获取用户配置 (为了回调和回复使用正确的 client_id 和 webhook) ──
+        from app.models.rss import ReadHubSettings
+        from app.core.crypto import decrypt_api_key
+        from app.services.llm_service import LLMService
         
         use_stream_mode = False
         client_id = None
         client_secret = None
+        webhook_url = None
+        secret = None
         
-        if settings and settings.dingtalk_stream_enabled:
-            use_stream_mode = True
-            client_id = settings.dingtalk_client_id
-            if settings.dingtalk_client_secret_encrypted:
-                from app.core.crypto import decrypt_api_key
-                try:
-                    client_secret = decrypt_api_key(settings.dingtalk_client_secret_encrypted)
-                except Exception as e:
-                    print(f"⚠️  解密Client Secret失败: {e}")
-                    client_secret = None
+        if app_source == "readhub":
+            result = await db.execute(select(ReadHubSettings).where(ReadHubSettings.user_id == user_id))
+            settings = result.scalar_one_or_none()
+        else:
+            result = await db.execute(select(UserNotificationSettings).where(UserNotificationSettings.user_id == user_id))
+            settings = result.scalar_one_or_none()
+            
+        if settings:
+            use_stream_mode = settings.dingtalk_stream_enabled
+            client_id = getattr(settings, "dingtalk_client_id", None)
+            if getattr(settings, "dingtalk_client_secret_encrypted", None):
+                client_secret = decrypt_api_key(settings.dingtalk_client_secret_encrypted)
+            webhook_url = getattr(settings, "dingtalk_webhook", None)
+            secret = getattr(settings, "dingtalk_secret", None)
+
+        # 始终获取用户的 LLM 配置
+        llm_result = await db.execute(select(UserNotificationSettings).where(UserNotificationSettings.user_id == user_id))
+        user_llm_settings = llm_result.scalar_one_or_none()
         
-        # ── 动态加载用户 LLM 配置 ──
-        user_llm_service = llm_service  # 默认使用全局实例
-        if settings and settings.llm_api_key_encrypted:
-            from app.core.crypto import decrypt_api_key
+        user_llm_service = llm_service # 默认回退到全局服务
+        if user_llm_settings and getattr(user_llm_settings, "llm_api_key_encrypted", None):
             try:
-                api_key = decrypt_api_key(settings.llm_api_key_encrypted)
-                if api_key:
-                    user_llm_service = LLMService(
-                        provider=settings.llm_provider or "minimax",
-                        api_key=api_key,
-                        model=settings.llm_model or None,
-                        group_id=settings.llm_group_id or None,
-                    )
-                    print(f"✅ 已加载用户 LLM 配置: provider={settings.llm_provider}, model={settings.llm_model}")
+                user_llm_service = LLMService(
+                    provider=user_llm_settings.llm_provider,
+                    api_key=decrypt_api_key(user_llm_settings.llm_api_key_encrypted),
+                    model=user_llm_settings.llm_model,
+                    group_id=user_llm_settings.llm_group_id
+                )
             except Exception as e:
-                print(f"⚠️  加载用户 LLM 配置失败: {e}")
+                print(f"解析用户 LLM 配置失败: {e}")
+
+        # ── 使用全新的 Tool Use Engine ──
+        from app.core.agent.engine import AgentEngine
+        from app.core.agent.history import transcript_service
+        from app.apps.tasktree.tools.query_task import QueryTaskTool
+        from app.apps.tasktree.tools.plan_project import PlanProjectTool
+        from app.apps.tasktree.tools.create_task import CreateTaskTool
+        from app.apps.tasktree.tools.update_progress import UpdateProgressTool
+        from app.apps.readhub.tools.fetch_articles import FetchArticlesTool
+        from app.apps.readhub.tools.wewerss_tool import WeweRssAgentTool
+        from app.apps.readhub.tools.search_articles_tool import SearchArticlesTool
         
-        # ── Step 0: 提前写入用户消息到对话缓存 (确保 Step 1 上下文可见) ──
-        try:
-            from app.services.cache_service import dingtalk_conversation_cache
-            dingtalk_conversation_cache.add_message(user_id, "user", message_content)
-        except Exception as e:
-            print(f"⚠️ 预写入对话缓存失败: {e}")
+        # 组装属于当前 app_source 的 Tools
+        tools = []
+        if app_source == "tasktree":
+            tools = [QueryTaskTool(db), PlanProjectTool(db, user_llm_service), CreateTaskTool(db), UpdateProgressTool(db)]
+            system_prompt = "你是 Nexus 项目下的 TaskTree 智能助手，负责帮助用户管理任务、规划项目进度。你可以调用工具来执行操作。"
+        elif app_source == "readhub":
+            tools = [FetchArticlesTool(db, user_llm_service), WeweRssAgentTool(db), SearchArticlesTool(db)]
+            system_prompt = "你是 Nexus 项目下的 ReadHub 智能助手，负责帮助用户获取订阅的文章、生成总结和精要，并且你可以根据用户意图调用 WeweRSS 工具订阅新的微信公众号，或者通过检索工具查找历史文章。你可以调用工具来执行操作。"
+        else:
+            system_prompt = "你是一个智能助手。"
+            
+        # 记录用户消息
+        await transcript_service.append_message(user_id, {"role": "user", "content": message_content}, app_source=app_source)
         
-        # ── Step 1: 构建上下文 ──
-        context_builder = ContextBuilder(db)
-        context = await context_builder.build(user_id)
+        # 加载历史记录
+        history_messages = await transcript_service.load_history(user_id, limit=20, app_source=app_source)
         
-        # ── Step 2: 解析意图 ──
-        intent_resolver = IntentResolver(db, user_llm_service)
-        intent = await intent_resolver.resolve(
-            message=message_content,
-            user_id=user_id,
-            context=context,
-        )
+        # 启动 Agent Engine
+        engine = AgentEngine(llm_service=user_llm_service, tools=tools, max_turns=10)
         
-        print(f"🎯 意图解析完成: intent={intent.intent.value}, "
-              f"confidence={intent.confidence:.2f}, source={intent.source}")
-        
-        # ── Step 3: 执行动作 ──
-        action_executor = ActionExecutor(db, user_llm_service)
-        action_result = await action_executor.execute(intent, user_id)
-        
-        # ── 发送回复 ──
-        await dingtalk_service.send_message(
-            dingtalk_user_id=dingtalk_user_id,
-            content=action_result.message,
-            msg_type=action_result.msg_type,
-            title=action_result.title,
-            use_stream_mode=use_stream_mode,
-            client_id=client_id,
-            client_secret=client_secret,
-        )
-        
-        # ── 保存助手回复到对话上下文 (用户消息已在 Step 0 写入) ──
-        try:
-            from app.services.cache_service import dingtalk_conversation_cache
-            dingtalk_conversation_cache.add_message(user_id, "assistant", action_result.message[:500])
-        except Exception as e:
-            print(f"⚠️ 保存钉钉对话历史失败: {e}")
-        
-        # 写操作成功后清除缓存
-        if action_result.success and intent.intent in (
-            "update_progress", "create_task", "modify_task"
-        ):
-            user_task_list_cache.delete_tasks(user_id)
-        
-        print(f"✅ 消息处理完成: success={action_result.success}")
+        final_text = ""
+        # 异步遍历生成器，发送中间进度或最终结果
+        async for state in engine.execute_loop(user_id, history_messages, system_prompt):
+            if state["type"] == "progress":
+                # 发送中间过程的进度提示 (比如 正在调用某个 Tool)
+                await dingtalk_service.send_message(
+                    dingtalk_user_id=dingtalk_user_id,
+                    content=state["content"],
+                    msg_type="text",
+                    use_stream_mode=use_stream_mode,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    webhook_url=webhook_url,
+                    secret=secret,
+                    conversation_type=conversation_type,
+                    conversation_id=conversation_id,
+                )
+            elif state["type"] == "text":
+                final_text = state["content"]
+            elif state["type"] == "data":
+                pass # 可选: 根据提取出的数据发送特殊的图文卡片
+                
+        # 保存助手最终回复
+        if final_text:
+            await transcript_service.append_message(user_id, {"role": "assistant", "content": final_text}, app_source=app_source)
+            
+            # 发送给用户
+            await dingtalk_service.send_message(
+                dingtalk_user_id=dingtalk_user_id,
+                content=final_text,
+                msg_type="markdown",
+                title="回复",
+                use_stream_mode=use_stream_mode,
+                client_id=client_id,
+                client_secret=client_secret,
+                webhook_url=webhook_url,
+                secret=secret,
+                conversation_type=conversation_type,
+                conversation_id=conversation_id,
+            )
+            
+        print(f"✅ 消息处理完成，引擎已终止。")
     
     except Exception as e:
         print(f"处理钉钉消息失败: {e}")

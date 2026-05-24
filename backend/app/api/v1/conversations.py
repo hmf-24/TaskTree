@@ -6,6 +6,7 @@ TaskTree AI 对话管理路由
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 
 from app.core.database import get_db

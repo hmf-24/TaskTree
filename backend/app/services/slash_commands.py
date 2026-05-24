@@ -29,6 +29,7 @@ class IntentType(str, Enum):
     READ_BRIEFING = "read_briefing"
     SAVE_TO_OBSIDIAN = "save_to_obsidian"
     CONVERT_TO_TASK = "convert_to_task"
+    CONFIG_RSS = "config_rss"
 
 
 @dataclass
@@ -52,6 +53,7 @@ class SlashCommand:
     usage: str
     intent: IntentType
     parser: Optional[Callable] = None  # 自定义参数解析器
+    app_source: str = "tasktree"  # 归属哪个应用: "tasktree", "readhub", "both"
 
 
 class SlashCommandRouter:
@@ -144,6 +146,7 @@ class SlashCommandRouter:
                 usage="/help [命令名]",
                 intent=IntentType.GENERAL_CHAT,
                 parser=self._parse_help_args,
+                app_source="both",
             ),
             # ---- ReadHub 扩展命令 ----
             SlashCommand(
@@ -153,6 +156,7 @@ class SlashCommandRouter:
                 usage="/read",
                 intent=IntentType.READ_BRIEFING,
                 parser=self._parse_read_args,
+                app_source="readhub",
             ),
             SlashCommand(
                 name="save",
@@ -161,6 +165,7 @@ class SlashCommandRouter:
                 usage="/save <文章ID>",
                 intent=IntentType.SAVE_TO_OBSIDIAN,
                 parser=self._parse_save_args,
+                app_source="readhub",
             ),
             SlashCommand(
                 name="convert",
@@ -169,6 +174,16 @@ class SlashCommandRouter:
                 usage="/convert <文章ID> [项目名]",
                 intent=IntentType.CONVERT_TO_TASK,
                 parser=self._parse_convert_args,
+                app_source="readhub",
+            ),
+            SlashCommand(
+                name="rss",
+                aliases=["config_rss", "设置推送"],
+                description="配置 RSS 自动拉取",
+                usage="/rss [on/off] [分钟]",
+                intent=IntentType.CONFIG_RSS,
+                parser=self._parse_config_rss_args,
+                app_source="readhub",
             ),
         ]
         
@@ -183,7 +198,7 @@ class SlashCommandRouter:
         """检查消息是否是斜杠命令"""
         return message.strip().startswith("/")
     
-    def parse(self, message: str) -> Optional[IntentResult]:
+    def parse(self, message: str, app_source: str = "tasktree") -> Optional[IntentResult]:
         """
         解析斜杠命令
         
@@ -228,9 +243,25 @@ class SlashCommandRouter:
                 clarification=self._format_unknown_command_help(command_name),
             )
         
+        # 校验命令所属的 app_source
+        if command.app_source not in [app_source, "both"]:
+            return IntentResult(
+                intent=IntentType.GENERAL_CHAT,
+                confidence=0.9,
+                params={"error": f"未知命令: /{command_name}"},
+                raw_message=message,
+                source="slash_command",
+                clarification=self._format_unknown_command_help(command_name, app_source),
+            )
+            
         # 使用自定义解析器或默认处理
         if command.parser:
-            result = command.parser(command_args)
+            import inspect
+            sig = inspect.signature(command.parser)
+            if "app_source" in sig.parameters:
+                result = command.parser(command_args, app_source=app_source)
+            else:
+                result = command.parser(command_args)
         else:
             result = IntentResult(
                 intent=command.intent,
@@ -434,12 +465,12 @@ class SlashCommandRouter:
             params=params,
         )
     
-    def _parse_help_args(self, args: str) -> IntentResult:
+    def _parse_help_args(self, args: str, app_source: str = "tasktree") -> IntentResult:
         """解析 /help 参数"""
         if args:
             # 查找特定命令的帮助
             cmd = self.commands.get(args.strip())
-            if cmd:
+            if cmd and cmd.app_source in [app_source, "both"]:
                 help_text = (
                     f"## /{cmd.name}\n\n"
                     f"**说明**: {cmd.description}\n"
@@ -447,9 +478,9 @@ class SlashCommandRouter:
                     f"**别名**: {', '.join('/' + a for a in cmd.aliases)}"
                 )
             else:
-                help_text = f"未知命令: /{args.strip()}\n\n" + self._format_help_text()
+                help_text = f"未知命令: /{args.strip()}\n\n" + self._format_help_text(app_source)
         else:
-            help_text = self._format_help_text()
+            help_text = self._format_help_text(app_source)
         
         return IntentResult(
             intent=IntentType.GENERAL_CHAT,
@@ -528,6 +559,33 @@ class SlashCommandRouter:
             params=params,
         )
 
+    def _parse_config_rss_args(self, args: str) -> IntentResult:
+        """解析 /rss [on/off] [分钟] 参数"""
+        if not args:
+            return IntentResult(
+                intent=IntentType.CONFIG_RSS,
+                confidence=0.5,
+                clarification="用法: `/rss on 30` (开启并设为30分钟) 或 `/rss off` (关闭)",
+            )
+        
+        params = {}
+        args_lower = args.lower().strip()
+        
+        if "on" in args_lower or "开启" in args_lower:
+            params["enabled"] = True
+        elif "off" in args_lower or "关闭" in args_lower:
+            params["enabled"] = False
+            
+        interval_match = re.search(r'(\d+)', args_lower)
+        if interval_match:
+            params["interval"] = int(interval_match.group(1))
+            
+        return IntentResult(
+            intent=IntentType.CONFIG_RSS,
+            confidence=1.0,
+            params=params,
+        )
+
     # ── 工具方法 ──────────────────────────────────────────────────
 
     def _parse_task_reference(self, text: str) -> Optional[Dict[str, Any]]:
@@ -543,36 +601,28 @@ class SlashCommandRouter:
         
         return {"name": text, "id": None}
     
-    def _format_help_text(self) -> str:
+    def _format_help_text(self, app_source: str = "tasktree") -> str:
         """生成帮助信息"""
         # 去重 (别名指向同一个命令)
         seen = set()
         unique_commands = []
         for cmd in self.commands.values():
-            if cmd.name not in seen:
+            if cmd.name not in seen and cmd.app_source in [app_source, "both"]:
                 seen.add(cmd.name)
                 unique_commands.append(cmd)
         
-        lines = ["## 📋 Nexus 命令帮助\n"]
+        if app_source == "tasktree":
+            lines = ["## 📋 Nexus 命令帮助\n"]
+        else:
+            lines = ["## 📰 ReadHub 命令帮助\n"]
         
         # 分组显示
-        task_cmds = [c for c in unique_commands if c.intent.value not in ('read_briefing', 'save_to_obsidian', 'convert_to_task', 'general_chat')]
-        hub_cmds = [c for c in unique_commands if c.intent.value in ('read_briefing', 'save_to_obsidian', 'convert_to_task')]
+        task_cmds = [c for c in unique_commands if c.intent.value != 'general_chat']
         other_cmds = [c for c in unique_commands if c.intent.value == 'general_chat']
         
         if task_cmds:
             lines.append("### 📝 TaskTree\n")
             for cmd in task_cmds:
-                aliases_str = ", ".join(f"/{a}" for a in cmd.aliases[:2])
-                lines.append(
-                    f"**/{cmd.name}** ({aliases_str})\n"
-                    f"  {cmd.description}\n"
-                    f"  用法: `{cmd.usage}`\n"
-                )
-        
-        if hub_cmds:
-            lines.append("### 📰 ReadHub\n")
-            for cmd in hub_cmds:
                 aliases_str = ", ".join(f"/{a}" for a in cmd.aliases[:2])
                 lines.append(
                     f"**/{cmd.name}** ({aliases_str})\n"
@@ -592,12 +642,12 @@ class SlashCommandRouter:
         lines.append(
             "\n---\n"
             "💡 也可以直接用自然语言描述，如：\n"
-            "「我的任务」「用户登录完成了」「创建一个搜索功能的任务」"
+            "「我的任务」「用户登录完成了」「开启自动拉取 30分钟」"
         )
         
         return "\n".join(lines)
     
-    def _format_unknown_command_help(self, command_name: str) -> str:
+    def _format_unknown_command_help(self, command_name: str, app_source: str = "tasktree") -> str:
         """生成未知命令的帮助提示"""
         return (
             f"未知命令: /{command_name}\n\n"
@@ -608,3 +658,4 @@ class SlashCommandRouter:
 
 # 全局单例
 slash_command_router = SlashCommandRouter()
+

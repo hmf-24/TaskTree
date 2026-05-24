@@ -29,7 +29,25 @@ export default function Layout() {
       icon: <SettingOutlined />,
       label: 'ReadHub 设置',
     },
-
+    {
+      type: 'divider',
+    },
+    {
+      key: '/',
+      icon: <AppstoreOutlined />,
+      label: '返回工作台',
+    },
+  ] : isTaskTree ? [
+    {
+      key: '/app/tasktree',
+      icon: <ProjectOutlined />,
+      label: '项目列表',
+    },
+    {
+      key: '/app/tasktree/settings',
+      icon: <SettingOutlined />,
+      label: 'TaskTree 设置',
+    },
     {
       type: 'divider',
     },
@@ -40,11 +58,10 @@ export default function Layout() {
     },
   ] : [
     {
-      key: '/app/tasktree',
-      icon: <ProjectOutlined />,
-      label: '项目列表',
+      key: '/settings',
+      icon: <SettingOutlined />,
+      label: '统一设置',
     },
-
     {
       type: 'divider',
     },
@@ -66,11 +83,8 @@ export default function Layout() {
         collapsed={collapsed}
         onCollapse={setCollapsed}
         trigger={null}
+        className="glass-sidebar"
         style={{
-          background: 'var(--color-surface)',
-          backdropFilter: 'var(--glass-blur)',
-          WebkitBackdropFilter: 'var(--glass-blur)',
-          borderRight: '1px solid var(--color-border)',
           position: 'fixed',
           left: 0,
           top: 0,
@@ -88,7 +102,7 @@ export default function Layout() {
             alignItems: 'center',
             justifyContent: collapsed ? 'center' : 'flex-start',
             padding: collapsed ? '0' : '0 20px',
-            borderBottom: '1px solid var(--color-border)',
+            borderBottom: 'none',
             cursor: 'pointer',
             transition: 'padding 0.2s var(--ease-smooth)',
           }}
@@ -103,8 +117,8 @@ export default function Layout() {
             transition: 'transform 0.2s var(--ease-smooth)',
           }}>
             <span style={{
-              color: '#000', fontWeight: 700, fontSize: 14,
-              fontFamily: 'var(--font-sans)',
+              color: '#FFFFFF', fontWeight: 700, fontSize: 14,
+              fontFamily: 'var(--font-heading)',
               letterSpacing: '-0.02em',
             }}>{appLetter}</span>
           </div>
@@ -113,7 +127,7 @@ export default function Layout() {
               marginLeft: 12, fontSize: 17, fontWeight: 600,
               color: 'var(--color-ink)',
               letterSpacing: '-0.02em',
-              fontFamily: 'var(--font-sans)',
+              fontFamily: 'var(--font-heading)',
             }}>
               {appName}
             </span>
@@ -132,7 +146,7 @@ export default function Layout() {
         {/* 底部信息 */}
         <div style={{
           padding: collapsed ? '12px 8px' : '12px 16px',
-          borderTop: '1px solid var(--color-border)',
+          borderTop: 'none',
           textAlign: 'center',
         }}>
           {!collapsed && (
@@ -159,7 +173,7 @@ export default function Layout() {
           onToggleCollapse={() => setCollapsed(!collapsed)}
         />
         <Content style={{
-          background: 'var(--color-canvas)',
+          background: 'transparent',
           minHeight: 'calc(100vh - var(--header-height))',
         }}>
           <Outlet />

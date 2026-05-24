@@ -76,6 +76,8 @@ class ObsidianService:
         db: AsyncSession, user_id: int, **kwargs
     ) -> ReadHubSettings:
         """创建或更新用户的 ReadHub 设置。"""
+        from app.core.crypto import encrypt_api_key
+
         result = await db.execute(
             select(ReadHubSettings).where(ReadHubSettings.user_id == user_id)
         )
@@ -84,6 +86,14 @@ class ObsidianService:
         if not settings:
             settings = ReadHubSettings(user_id=user_id)
             db.add(settings)
+
+        # 处理密码加密
+        if "dingtalk_client_secret" in kwargs:
+            secret = kwargs.pop("dingtalk_client_secret")
+            if secret:
+                settings.dingtalk_client_secret_encrypted = encrypt_api_key(secret)
+            elif secret == "":
+                settings.dingtalk_client_secret_encrypted = None
 
         for key, value in kwargs.items():
             if hasattr(settings, key) and value is not None:

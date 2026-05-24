@@ -9,7 +9,7 @@ task_attachments, notifications, operation_logs。
 Base 在此处统一定义，其他模块（如 database.py）从此处导入，
 避免多次创建 Base 实例导致 mapper 关联失效。
 """
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship, DeclarativeBase, backref
 from datetime import datetime, timezone
 
@@ -93,6 +93,8 @@ class Task(Base):
     start_date = Column(Date, comment="开始日期")
     due_date = Column(Date, comment="截止日期")
     sort_order = Column(Integer, default=0, index=True, comment="同级任务排序序号，数值越小越靠前")
+    task_type = Column(String(20), default='manual', comment="任务类型: manual(人工) / automated(可自动执行) / review(审查)")
+    metadata_json = Column(Text, comment="可扩展元数据 (JSON)，存储 Agent 执行参数、关联 URL、Prompt 模板等")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -106,6 +108,18 @@ class Task(Base):
     attachments = relationship('TaskAttachment', back_populates='task', cascade='all, delete-orphan')
     tag_relations = relationship('TaskTagRelation', back_populates='task', cascade='all, delete-orphan')
 
+    @property
+    def metadata_dict(self) -> dict:
+        """获取元数据字典"""
+        import json
+        return json.loads(self.metadata_json) if self.metadata_json else {}
+
+    @metadata_dict.setter
+    def metadata_dict(self, value: dict):
+        """设置元数据字典"""
+        import json
+        self.metadata_json = json.dumps(value, ensure_ascii=False) if value else None
+
 
 class TaskDependency(Base):
     """任务依赖关系表 - 记录任务间的前置依赖（A 完成后 B 才能开始）。"""
@@ -114,6 +128,7 @@ class TaskDependency(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True, comment="前置任务 ID（被依赖方）")
     dependent_task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False, index=True, comment="后续任务 ID（依赖方）")
+    dependency_type = Column(String(30), default='finish_to_start', comment="依赖类型: finish_to_start / start_to_start / finish_to_finish")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint('task_id', 'dependent_task_id'),)
