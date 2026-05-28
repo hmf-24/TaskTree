@@ -30,10 +30,10 @@ export const MEMBER_ROLE = {
 
 // 状态颜色映射（低饱和度马卡龙色）
 export const STATUS_COLORS: Record<string, string> = {
-  pending: 'default',
+  pending: 'cyan',
   in_progress: 'blue',
   completed: 'green',
-  cancelled: 'default',
+  cancelled: 'magenta',
   blocked: 'orange',
 };
 

@@ -52,19 +52,23 @@ class SimpleCrypto:
             return ""
 
         if HAS_CRYPTOGRAPHY:
-            fernet = Fernet(self.fernet_key)
-            return fernet.decrypt(ciphertext.encode()).decode()
-        else:
-            # 降级方案：base64 + XOR
             try:
-                encrypted = base64.b64decode(ciphertext.encode())
-                key_bytes = self.key
-                decrypted = bytearray()
-                for i, b in enumerate(encrypted):
-                    decrypted.append(b ^ key_bytes[i % len(key_bytes)])
-                return bytes(decrypted).decode()
+                fernet = Fernet(self.fernet_key)
+                return fernet.decrypt(ciphertext.encode()).decode()
             except Exception:
-                return ""
+                # 降级尝试 XOR（可能是安装 cryptography 前用 XOR 加密的老数据）
+                pass
+                
+        # 降级方案：base64 + XOR
+        try:
+            encrypted = base64.b64decode(ciphertext.encode())
+            key_bytes = self.key
+            decrypted = bytearray()
+            for i, b in enumerate(encrypted):
+                decrypted.append(b ^ key_bytes[i % len(key_bytes)])
+            return bytes(decrypted).decode()
+        except Exception:
+            return ""
 
 
 # 全局加密实例（使用应用密钥）
