@@ -33,7 +33,8 @@ export default function ReadHubSettings() {
             obsidian_vault_path: res.data.obsidian_vault_path,
             obsidian_folder: res.data.obsidian_folder,
             auto_fetch_enabled: res.data.auto_fetch_enabled,
-            auto_fetch_interval: res.data.auto_fetch_interval,
+            auto_fetch_interval_value: res.data.auto_fetch_interval >= 1440 && res.data.auto_fetch_interval % 1440 === 0 ? res.data.auto_fetch_interval / 1440 : (res.data.auto_fetch_interval >= 60 && res.data.auto_fetch_interval % 60 === 0 ? res.data.auto_fetch_interval / 60 : res.data.auto_fetch_interval || 60),
+            auto_fetch_interval_unit: res.data.auto_fetch_interval >= 1440 && res.data.auto_fetch_interval % 1440 === 0 ? 'days' : (res.data.auto_fetch_interval >= 60 && res.data.auto_fetch_interval % 60 === 0 ? 'hours' : 'minutes'),
             dingtalk_stream_enabled: res.data.dingtalk_stream_enabled,
             dingtalk_client_id: res.data.dingtalk_client_id,
             dingtalk_client_secret: res.data.dingtalk_client_secret,
@@ -66,6 +67,12 @@ export default function ReadHubSettings() {
     if (values.interest_tags && Array.isArray(values.interest_tags)) {
       values.interest_tags = JSON.stringify(values.interest_tags);
     }
+    
+    // 换算拉取间隔
+    const multiplier = values.auto_fetch_interval_unit === 'days' ? 1440 : (values.auto_fetch_interval_unit === 'hours' ? 60 : 1);
+    values.auto_fetch_interval = (values.auto_fetch_interval_value || 60) * multiplier;
+    delete values.auto_fetch_interval_value;
+    delete values.auto_fetch_interval_unit;
     
     try {
       const res: any = await readhubSettingsAPI.update(values);
@@ -329,7 +336,7 @@ export default function ReadHubSettings() {
           >
             <Select
               mode="tags"
-              placeholder="请输入关注领域，按回车添加"
+              placeholder="输入自定义标签后，按回车键添加"
               style={{ width: '100%' }}
               options={[
                 { value: 'AI', label: 'AI' },
@@ -354,12 +361,19 @@ export default function ReadHubSettings() {
             <Switch checkedChildren="已启用" unCheckedChildren="已禁用" />
           </Form.Item>
 
-          <Form.Item
-            label="拉取间隔（分钟）"
-            name="auto_fetch_interval"
-            tooltip="两次自动拉取之间的最小间隔时间"
-          >
-            <InputNumber min={5} max={1440} style={{ width: 160 }} />
+          <Form.Item label="拉取间隔" tooltip="两次自动拉取之间的最小间隔时间">
+            <Space.Compact>
+              <Form.Item name="auto_fetch_interval_value" noStyle rules={[{ required: true, message: '请输入数值' }]}>
+                <InputNumber min={1} style={{ width: 120 }} />
+              </Form.Item>
+              <Form.Item name="auto_fetch_interval_unit" noStyle>
+                <Select style={{ width: 80 }} options={[
+                  { label: '分钟', value: 'minutes' },
+                  { label: '小时', value: 'hours' },
+                  { label: '天', value: 'days' }
+                ]} />
+              </Form.Item>
+            </Space.Compact>
           </Form.Item>
 
           {/* ── 钉钉机器人配置 (ReadHub专属) ── */}

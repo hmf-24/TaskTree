@@ -28,7 +28,7 @@ const antdTheme = {
     colorSuccess: '#2F5A28',
     colorWarning: '#A67B1E',
     colorError: '#9F2F2D',
-    colorInfo: '#1F6C9F',
+    colorInfo: '#666666', // 改为中性灰
 
     // 中性色（Taste Skill Light Organic）
     colorText: '#111111',
@@ -114,6 +114,9 @@ const antdTheme = {
       hoverBorderColor: 'rgba(0, 0, 0, 0.2)',
       activeBorderColor: 'rgba(0, 0, 0, 0.3)',
       activeShadow: '0 0 0 2px rgba(0, 0, 0, 0.05)',
+      optionSelectedBg: 'rgba(0, 0, 0, 0.06)',
+      optionActiveBg: 'rgba(0, 0, 0, 0.04)',
+      optionSelectedColor: '#000000',
     },
     Card: {
       paddingLG: 24,
@@ -157,8 +160,14 @@ const antdTheme = {
       itemSelectedColor: '#000000',
       itemHoverColor: '#333333',
     },
+    Alert: {
+      colorInfoBg: '#F7F7F7',
+      colorInfoBorder: '#EAEAEA',
+      colorInfo: '#555555',
+    },
     Switch: {
-      handleBg: '#1F6C9F',
+      colorPrimary: '#737373',
+      colorPrimaryHover: '#555555',
     },
   },
 };

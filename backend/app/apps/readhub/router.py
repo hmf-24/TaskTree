@@ -226,6 +226,7 @@ class ReadHubSettingsUpdate(BaseModel):
     dingtalk_stream_enabled: Optional[bool] = None
     wewe_server_url: Optional[str] = None
     wewe_auth_code: Optional[str] = None
+    interest_tags: Optional[str] = None
 
 
 @router.get("/settings", summary="获取 ReadHub 设置")
@@ -274,6 +275,7 @@ async def get_readhub_settings(
             "dingtalk_stream_enabled": settings.dingtalk_stream_enabled,
             "wewe_server_url": settings.wewe_server_url or "",
             "wewe_auth_code": settings.wewe_auth_code or "",
+            "interest_tags": settings.interest_tags or '["AI", "前沿技术", "数据中心", "算力", "GPU"]',
         },
     }
 
@@ -293,10 +295,11 @@ async def update_readhub_settings(
         **update_data
     )
     
-    # 异步触发调度器重载
-    from app.services.scheduler_service import SchedulerService
-    import asyncio
-    asyncio.create_task(SchedulerService.reload_user_rss_job(user.id))
+    # (由于现在使用 AgentRoutine 统一接管自动拉取，此处不再独立注册定时任务)
+    # 异步触发调度器重载 (如果之后需要单独拉起特定例程可以恢复)
+    # from app.services.scheduler_service import SchedulerService
+    # import asyncio
+    # asyncio.create_task(SchedulerService.reload_user_rss_job(user.id))
     
     # 触发钉钉 Stream Client 局部重启
     from app.services.dingtalk_stream_client import restart_user_stream_client

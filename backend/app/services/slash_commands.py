@@ -30,6 +30,7 @@ class IntentType(str, Enum):
     SAVE_TO_OBSIDIAN = "save_to_obsidian"
     CONVERT_TO_TASK = "convert_to_task"
     CONFIG_RSS = "config_rss"
+    MANAGE_ROUTINE = "manage_routine"
 
 
 @dataclass
@@ -184,6 +185,16 @@ class SlashCommandRouter:
                 intent=IntentType.CONFIG_RSS,
                 parser=self._parse_config_rss_args,
                 app_source="readhub",
+            ),
+            # ---- Routine 自动化任务意图 ----
+            SlashCommand(
+                name="routine",
+                aliases=["自动任务", "定时任务", "schedule"],
+                description="管理自动化定时任务 (Routines)",
+                usage="/routine <自然语言描述，如：每天晚上 6 点总结任务>",
+                intent=IntentType.MANAGE_ROUTINE,
+                parser=self._parse_routine_args,
+                app_source="both",
             ),
         ]
         
@@ -584,6 +595,14 @@ class SlashCommandRouter:
             intent=IntentType.CONFIG_RSS,
             confidence=1.0,
             params=params,
+        )
+
+    def _parse_routine_args(self, args: str, app_source: str = "tasktree") -> IntentResult:
+        """解析 /routine 参数，由于其通常包含复杂的自然语言，我们将其打包给 LLM"""
+        return IntentResult(
+            intent=IntentType.MANAGE_ROUTINE,
+            confidence=1.0,
+            params={"natural_language_instruction": args},
         )
 
     # ── 工具方法 ──────────────────────────────────────────────────

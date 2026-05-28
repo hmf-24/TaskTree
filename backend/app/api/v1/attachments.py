@@ -70,8 +70,8 @@ async def upload_file(
     with open(file_path, "wb") as f:
         f.write(file_content)
     
-    # Step 7: 生成访问URL（使用完整的后端URL）
-    file_url = f"http://localhost:8000/uploads/general/{current_user.id}/{unique_filename}"
+    # Step 7: 生成访问URL（使用相对路径，依靠前端/反向代理转发）
+    file_url = f"/uploads/general/{current_user.id}/{unique_filename}"
     
     # Step 8: 返回标准格式响应
     return {

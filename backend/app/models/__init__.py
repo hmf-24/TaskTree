@@ -17,6 +17,8 @@ class Base(DeclarativeBase):
     """SQLAlchemy 声明式基类（2.0 风格）"""
     pass
 
+# Import AgentRoutine
+from .routine import AgentRoutine
 
 class User(Base):
     """用户表 - 存储系统注册用户的基本信息和凭证。"""
@@ -90,8 +92,8 @@ class Task(Base):
     progress = Column(Integer, default=0, comment="进度百分比 0-100")
     estimated_time = Column(Integer, comment="预计耗时（分钟）")
     actual_time = Column(Integer, comment="实际耗时（分钟）")
-    start_date = Column(Date, comment="开始日期")
-    due_date = Column(Date, comment="截止日期")
+    start_date = Column(DateTime, comment="开始日期及时间")
+    due_date = Column(DateTime, comment="截止日期及时间")
     sort_order = Column(Integer, default=0, index=True, comment="同级任务排序序号，数值越小越靠前")
     task_type = Column(String(20), default='manual', comment="任务类型: manual(人工) / automated(可自动执行) / review(审查)")
     metadata_json = Column(Text, comment="可扩展元数据 (JSON)，存储 Agent 执行参数、关联 URL、Prompt 模板等")

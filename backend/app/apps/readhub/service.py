@@ -182,10 +182,25 @@ class RssService:
                         elif isinstance(item.get("author"), str):
                             author_name = item["author"]
                         
+                        content_html = item.get("content_html", "") or item.get("summary", "")
+                        if not content_html and link:
+                            try:
+                                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as fetch_client:
+                                    resp_html = await fetch_client.get(link, headers={'User-Agent': 'Mozilla/5.0'})
+                                    if resp_html.status_code == 200:
+                                        from bs4 import BeautifulSoup
+                                        soup = BeautifulSoup(resp_html.text, 'html.parser')
+                                        # 针对微信公众号等网页提取段落
+                                        paragraphs = soup.find_all('p')
+                                        text_parts = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
+                                        content_html = '\n'.join(text_parts)
+                            except Exception as e:
+                                logger.warning(f"Fallback fetch failed for {link}: {e}")
+
                         article = RssArticle(
                             feed_id=feed.id,
                             title=item.get("title", "无标题"),
-                            content_html=item.get("content_html", "") or item.get("summary", ""),
+                            content_html=content_html,
                             summary=None,
                             source_url=link,
                             author=author_name,

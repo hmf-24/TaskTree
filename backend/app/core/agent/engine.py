@@ -70,7 +70,8 @@ class AgentEngine:
                         "update_progress_tool": "更新进度",
                         "fetch_articles_tool": "获取文章",
                         "search_articles_tool": "全文检索",
-                        "wewerss_agent_tool": "管理订阅"
+                        "wewerss_agent_tool": "管理订阅",
+                        "manage_routine_tool": "管理自动任务"
                     }
                     
                     if len(tool_calls) > 1:

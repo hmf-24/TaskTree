@@ -31,7 +31,7 @@ class SearchArticlesTool(BaseTool):
             # 使用 FTS5 虚拟表进行检索，并联合查询获取原始数据
             # 注意: 使用 user_id 进行安全隔离，确保只能搜到自己订阅源的文章
             sql = text("""
-                SELECT a.id, a.title, a.author, a.source_url, 
+                SELECT a.id, a.title, a.author, a.source_url, a.summary,
                        snippet(rss_articles_fts, -1, '<b>', '</b>', '...', 64) as match_snippet
                 FROM rss_articles_fts fts
                 JOIN rss_articles a ON fts.rowid = a.id
@@ -55,6 +55,7 @@ class SearchArticlesTool(BaseTool):
                     "title": row.title,
                     "author": row.author,
                     "url": row.source_url,
+                    "summary": row.summary,
                     "snippet": row.match_snippet
                 })
 

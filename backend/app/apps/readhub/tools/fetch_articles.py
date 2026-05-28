@@ -36,6 +36,7 @@ class FetchArticlesTool(BaseTool):
                     final_summary = content_preview
 
                 data.append({
+                    "id": item.id,
                     "title": item.title,
                     "author": item.author,
                     "summary": final_summary,
@@ -45,7 +46,7 @@ class FetchArticlesTool(BaseTool):
             import json
             return ToolResult(
                 success=True,
-                output=f"成功获取了 {len(data)} 篇未读文章，详细内容如下:\n{json.dumps(data, ensure_ascii=False, indent=2)}",
+                output=f"成功获取了 {len(data)} 篇未读文章，包含标题、作者、原文链接(url)、内部系统ID(id)以及核心摘要(summary)。你可以直接基于 summary 回答用户的问题。详细数据:\n{json.dumps(data, ensure_ascii=False, indent=2)}",
                 data=data
             )
         except Exception as e:

@@ -12,6 +12,7 @@ class CreateTaskSchema(BaseModel):
     priority: str = Field("medium", description="优先级: low/medium/high/urgent")
     estimated_time: Optional[float] = Field(None, description="预估时间（小时）")
     project_id: Optional[int] = Field(None, description="所属项目ID，如果未提供将自动使用默认项目")
+    due_date: Optional[str] = Field(None, description="截止日期，格式为 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")
 
 class CreateTaskTool(BaseTool):
     name = "create_task_tool"
@@ -27,17 +28,33 @@ class CreateTaskTool(BaseTool):
         priority = kwargs.get("priority", "medium")
         estimated_time = kwargs.get("estimated_time")
         project_id = kwargs.get("project_id")
-        
-        # 如果没有指定项目，查找用户的默认项目或第一个项目
+        due_date_str = kwargs.get("due_date")
+        parsed_due_date = None
+        if due_date_str:
+            try:
+                if len(due_date_str) == 10:
+                    parsed_due_date = datetime.strptime(due_date_str, "%Y-%m-%d")
+                else:
+                    parsed_due_date = datetime.strptime(due_date_str, "%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                print(f"解析 due_date 失败: {e}")
+
+        # 如果没有指定项目，查找用户的默认收集箱项目
         if not project_id:
-            stmt = select(Project).where(Project.owner_id == user_id).order_by(Project.created_at.asc()).limit(1)
+            stmt = select(Project).where(Project.owner_id == user_id, Project.name == "收集箱")
             result = await self.db.execute(stmt)
             default_project = result.scalars().first()
             if not default_project:
-                return ToolResult(
-                    success=False,
-                    output="创建失败：您还没有创建任何项目，请先使用 plan_project_tool 创建项目。"
+                # 自动创建一个默认收集箱项目
+                default_project = Project(
+                    name="收集箱",
+                    description="自动创建的默认项目，用于归档未分类的任务。",
+                    owner_id=user_id,
+                    status="active"
                 )
+                self.db.add(default_project)
+                await self.db.commit()
+                await self.db.refresh(default_project)
             project_id = default_project.id
 
         # 检查项目是否存在及权限
@@ -55,7 +72,8 @@ class CreateTaskTool(BaseTool):
             priority=priority,
             estimated_time=estimated_time,
             project_id=project_id,
-            status="pending"
+            status="pending",
+            due_date=parsed_due_date
         )
         self.db.add(new_task)
         await self.db.commit()

@@ -254,15 +254,20 @@ async def process_dingtalk_message(
         from app.apps.readhub.tools.fetch_articles import FetchArticlesTool
         from app.apps.readhub.tools.wewerss_tool import WeweRssAgentTool
         from app.apps.readhub.tools.search_articles_tool import SearchArticlesTool
+        from app.apps.readhub.tools.get_article_content_tool import GetArticleContentTool
+        from app.core.agent.tools.manage_routine_tool import ManageRoutineTool
         
-        # 组装属于当前 app_source 的 Tools
-        tools = []
+        # 组装基础工具
+        tools = [
+            ManageRoutineTool(db=db, app_source=app_source)
+        ]
+        
         if app_source == "tasktree":
-            tools = [QueryTaskTool(db), PlanProjectTool(db, user_llm_service), CreateTaskTool(db), UpdateProgressTool(db)]
+            tools.extend([QueryTaskTool(db), PlanProjectTool(db, user_llm_service), CreateTaskTool(db), UpdateProgressTool(db)])
             system_prompt = "你是 Nexus 项目下的 TaskTree 智能助手，负责帮助用户管理任务、规划项目进度。你可以调用工具来执行操作。"
         elif app_source == "readhub":
-            tools = [FetchArticlesTool(db, user_llm_service), WeweRssAgentTool(db), SearchArticlesTool(db)]
-            system_prompt = "你是 Nexus 项目下的 ReadHub 智能助手，负责帮助用户获取订阅的文章、生成总结和精要，并且你可以根据用户意图调用 WeweRSS 工具订阅新的微信公众号，或者通过检索工具查找历史文章。你可以调用工具来执行操作。"
+            tools.extend([FetchArticlesTool(db, user_llm_service), WeweRssAgentTool(db), SearchArticlesTool(db), GetArticleContentTool(db)])
+            system_prompt = "你是 Nexus 项目下的 ReadHub 智能助手，负责帮助用户获取订阅的文章、生成总结和精要，并且你可以根据用户意图调用 WeweRSS 工具订阅新的微信公众号，或者通过检索工具查找历史文章。你可以调用工具来执行操作。当向用户介绍一篇文章或展示搜索结果时，你只需要提供基于提供数据的精炼摘要（字数视情况而定），并附上原文的链接 (URL) 以便进一步阅读。此外，如果你获得了该文章的内部 ID，请务必在末尾提醒用户：他们可以随时通过回复 `/save <文章ID>` 指令将该文章一键保存到本地知识库。"
         else:
             system_prompt = "你是一个智能助手。"
             
